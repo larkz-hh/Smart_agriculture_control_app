@@ -1,3 +1,4 @@
+import { Chat } from "./Chat";
 import { Control } from "./Control";
 import { Mine } from "./Mine";
 import { Monitor } from "./Monitor";
@@ -31,6 +32,11 @@ struct Layout {
       activeIcon: $r('app.media.monitor_active_icon')
     },
     {
+      text: '对话',
+      icon: $r('app.media.ai_chat_icon'),
+      activeIcon: $r('app.media.ai_chat_active_icon')
+    },
+    {
       text: '我的',
       icon: $r('app.media.mine_icon'),
       activeIcon: $r('app.media.mine_active_icon')
@@ -59,6 +65,8 @@ struct Layout {
             } else if(this.currentIndex === 1){
               Monitor()
             }else if(this.currentIndex === 2){
+              Chat()
+            }else if(this.currentIndex ===3){
               Mine()
             }
 
