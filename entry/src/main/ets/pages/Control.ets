@@ -1,7 +1,13 @@
+
 @Component
 export struct Control{
   build() {
-    Text('控制')
-      .fontSize(15)
+    Column(){
+      Button("添加设备")
+        .backgroundColor('#63AAAA')
+        .onClick(() => {
+
+      })
+    }
   }
 }

@@ -8,10 +8,26 @@ interface MineItem {
   tag?: string;
 }
 
-@Component
+@ComponentV2
 export struct Mine {
-  @State userAvatar: string | Resource = $r('app.media.app_icon'); // 默认头像
-  @State userName: string = "默认名字";
+  @Local userAvatar: string | Resource = $r('app.media.app_icon'); // 默认头像
+  @Local userName: string = "默认名字";
+  @Local greeting: string = '';
+  aboutToAppear() {
+    this.updateGreeting();
+  }
+
+  updateGreeting() {
+    const now = new Date();
+    const hour = now.getHours();
+    if (hour >= 0 && hour < 12) {
+      this.greeting = '上午好';
+    } else if (hour >= 12 && hour < 18) {
+      this.greeting = '下午好';
+    } else {
+      this.greeting = '晚上好';
+    }
+  }
 
   // 列表数据
   private mineList: MineItem[] = [
@@ -83,7 +99,7 @@ export struct Mine {
                 .width(18)
                 .margin({ left: 10 })
             }
-            Text('下午好, 欢迎回来')
+            Text(this.greeting + ', 欢迎回来')
               .fontSize(14)
               .fontColor('#999')
           }
