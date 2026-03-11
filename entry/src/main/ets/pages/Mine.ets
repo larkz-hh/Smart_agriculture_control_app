@@ -1,6 +1,7 @@
 import { photoAccessHelper } from '@kit.MediaLibraryKit';
 import { fileIo } from '@kit.CoreFileKit';
 import { common } from '@kit.AbilityKit';
+import { promptAction } from '@kit.ArkUI';
 
 interface MineItem {
   icon: ResourceStr;
@@ -8,15 +9,19 @@ interface MineItem {
   tag?: string;
 }
 
-@ComponentV2
+@Component
 export struct Mine {
-  @Local userAvatar: string | Resource = $r('app.media.app_icon'); // 默认头像
-  @Local userName: string = "默认名字";
-  @Local greeting: string = '';
+  pathStack?: NavPathStack;
+
+  @StorageLink('isLoggedIn') isLoggedIn: boolean = false;
+  @StorageProp('local_username') savedUsername: string = '';
+
+  @State userAvatar: string | Resource = $r('app.media.app_icon');
+  @State greeting: string = '';
   aboutToAppear() {
     this.updateGreeting();
   }
-
+  //判断时间
   updateGreeting() {
     const now = new Date();
     const hour = now.getHours();
@@ -38,17 +43,21 @@ export struct Mine {
 
   // 选择图片
   async selectImage() {
-    try {
-      let PhotoSelectOptions = new photoAccessHelper.PhotoSelectOptions();
-      PhotoSelectOptions.MIMEType = photoAccessHelper.PhotoViewMIMETypes.IMAGE_TYPE;
-      PhotoSelectOptions.maxSelectNumber = 1;
-      let photoPicker = new photoAccessHelper.PhotoViewPicker();
-      let photoSelectResult = await photoPicker.select(PhotoSelectOptions);
-      if (photoSelectResult && photoSelectResult.photoUris.length > 0) {
+    if(this.isLoggedIn){
+      try {
+        let PhotoSelectOptions = new photoAccessHelper.PhotoSelectOptions();
+        PhotoSelectOptions.MIMEType = photoAccessHelper.PhotoViewMIMETypes.IMAGE_TYPE;
+        PhotoSelectOptions.maxSelectNumber = 1;
+        let photoPicker = new photoAccessHelper.PhotoViewPicker();
+        let photoSelectResult = await photoPicker.select(PhotoSelectOptions);
+        if (photoSelectResult && photoSelectResult.photoUris.length > 0) {
         this.userAvatar = photoSelectResult.photoUris[0];
-      }
+        }
     } catch (err) {
-      console.error('PhotoViewPicker.select failed: ' + err);
+        console.error('PhotoViewPicker.select failed: ' + err);
+      }
+    }else{
+      promptAction.showToast({message: '你还未登录'})
     }
   }
 
@@ -80,7 +89,17 @@ export struct Mine {
     .height(60)
     .padding({ left: 15, right: 15 })
     .onClick(() => {
-      // 后期跳转逻辑
+      //后期跳转逻辑
+      if (item.text === '退出登录') {
+        if (!this.isLoggedIn) {
+          promptAction.showToast({ message: '您还没有登录哦' });
+          return;
+        }
+        AppStorage.setOrCreate('isLoggedIn', false);
+        promptAction.showToast({ message: '已退出登录' });
+      } else {
+        console.info(`点击了: ${item.text}`);
+      }
       console.info(`点击了: ${item.text}`)
     })
   }
@@ -91,17 +110,28 @@ export struct Mine {
         // 顶部用户信息区
         Row() {
           Column({ space: 8 }) {
-            Row() {
-              Text(this.userName)
-                .fontSize(22)
-                .fontWeight(FontWeight.Bold)
-              Image($r('app.media.arrow_right_ic'))
-                .width(18)
-                .margin({ left: 10 })
+            if (this.isLoggedIn) {
+              Row() {
+                Text(this.savedUsername)
+                  .fontSize(22)
+                  .fontWeight(FontWeight.Bold)
+                Image($r('app.media.arrow_right_ic')).width(18).margin({ left: 10 })
+              }
+              Text(this.greeting + ', 欢迎回来').fontSize(14).fontColor('#999')
+            } else {
+              //未登录
+              Row() {
+                Text('您还未登录')
+                  .fontSize(22)
+                  .fontWeight(FontWeight.Bold)
+              }
+              Text('点击此处登录 / 注册账号').fontSize(14).fontColor('#63AAAA')
+                .onClick(() => {
+                  if (!this.isLoggedIn && this.pathStack) {
+                    this.pathStack.pushPathByName('Login', null);
+                  }
+                })
             }
-            Text(this.greeting + ', 欢迎回来')
-              .fontSize(14)
-              .fontColor('#999')
           }
           .alignItems(HorizontalAlign.Start)
           .layoutWeight(1)
@@ -121,12 +151,11 @@ export struct Mine {
 
 
 
-
         //  功能列表卡片
         Column() {
           ForEach(this.mineList, (item: MineItem, index: number) => {
             this.itemBuilder(item)
-            // 如果不是最后一项，添加分割线
+            //如果不是最后一项，添加分割线
             if (index !== this.mineList.length - 1) {
               Divider()
                 .strokeWidth(0.5)

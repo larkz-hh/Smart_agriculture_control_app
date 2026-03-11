@@ -67,7 +67,7 @@ struct Layout {
             }else if(this.currentIndex === 2){
               Chat()
             }else if(this.currentIndex ===3){
-              Mine()
+              Mine({ pathStack: this.pathStack })
             }
 
           }
