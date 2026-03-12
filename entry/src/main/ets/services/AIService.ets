@@ -4,6 +4,10 @@ import { AppConfig } from '../config/AppConfig';
 import { ApiMessage, StreamResponseModel } from '../model/AiApiModel';
 import { MessageModel } from '../model/MessageModel';
 
+interface Thinking{
+  "type": string ;
+}
+
 export class AiService {
   private static readonly API_KEY = AppConfig.API_KEY;
   private static readonly API_URL = 'https://ark.cn-beijing.volces.com/api/v3/chat/completions';
@@ -18,6 +22,7 @@ export class AiService {
    */
   static async sendStreamChat(
     chatHistory: MessageModel[],
+    isDeepThinking: boolean,
     onChunk: (text: string) => void,
     onFinish: () => void,
     onError: (err: string) => void
@@ -87,7 +92,8 @@ export class AiService {
         extraData: JSON.stringify({
           model: AiService.MODEL_NAME,
           messages: apiMessages,
-          stream: true
+          stream: true,
+          thinking: ({ "type": isDeepThinking ? 'enabled' : 'disabled' } as Thinking)
         }),
         connectTimeout: 60000,
         readTimeout: 60000

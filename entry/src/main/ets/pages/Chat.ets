@@ -9,6 +9,7 @@ export struct Chat {
   ];
   @Local inputValue: string = '';
   @Local isLoading: boolean = false;
+  @Local isDeepThinking: boolean = false;
   private scroller: Scroller = new Scroller();
   private mdController: MarkdownController = new MarkdownController();
   aboutToAppear() {
@@ -32,6 +33,7 @@ export struct Chat {
 
     AiService.sendStreamChat(
       this.messageList.slice(0, this.messageList.length - 1),
+      this.isDeepThinking,
       //将每次吐出的字追加到 UI上
       (chunk: string) => {
         aiMessage.content += chunk;
@@ -154,6 +156,24 @@ export struct Chat {
       .height('100%')
       .backgroundColor('#F0F2F5')
       .edgeEffect(EdgeEffect.Spring)
+      Row() {
+        Text('深度思考')
+          .fontSize(12)
+          .fontColor('#666')
+        Toggle({ type: ToggleType.Switch, isOn: this.isDeepThinking })
+          .selectedColor('#63AAAA')
+          .switchPointColor(Color.White)
+          .width(36)
+          .height(20)
+          .margin({ left: 8 })
+          .onChange((isOn: boolean) => {
+            this.isDeepThinking = isOn;
+          })
+      }
+      .width('100%')
+      .padding({ left: 15, right: 15, top: 8, bottom: 2 })
+      .backgroundColor(Color.White)
+      .justifyContent(FlexAlign.Start)
 
       Row({ space: 10 }) {
         TextInput({ text: this.inputValue, placeholder: '输入您的问题...' })
