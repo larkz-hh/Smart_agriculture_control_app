@@ -1,5 +1,5 @@
 import { Chat } from "./Chat";
-import { Control } from "./Control";
+import { Home } from "./Control";
 import { Mine } from "./Mine";
 import { Monitor } from "./Monitor";
 
@@ -61,7 +61,7 @@ struct Layout {
         ForEach(this.tabData,(item: TabClass,index: number)=>{
           TabContent(){
             if(this.currentIndex === 0){
-              Control()
+              Home({ pathStack: this.pathStack })
             } else if(this.currentIndex === 1){
               Monitor()
             }else if(this.currentIndex === 2){

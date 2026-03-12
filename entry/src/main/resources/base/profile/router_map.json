@@ -25,6 +25,11 @@
       "name": "Register",
       "pageSourceFile": "src/main/ets/pages/Register.ets",
       "buildFunction": "RegisterBuilder"
+    },
+    {
+      "name": "NewsDetail",
+      "pageSourceFile": "src/main/ets/pages/NewsDetail.ets",
+      "buildFunction": "NewsDetailBuilder"
     }
 
   ]
