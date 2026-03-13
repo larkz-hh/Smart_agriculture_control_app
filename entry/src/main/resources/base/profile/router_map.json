@@ -3,18 +3,12 @@
     {
       "name": "Start",
       "pageSourceFile": "src/main/ets/pages/Splash.ets",
-      "buildFunction": "StartBuilder",
-      "data": {
-        "description" : "this is Start"
-      }
+      "buildFunction": "StartBuilder"
     },
     {
       "name": "Layout",
       "pageSourceFile": "src/main/ets/pages/Layout.ets",
-      "buildFunction": "LayoutBuilder",
-      "data": {
-        "description" : "this is Layout"
-      }
+      "buildFunction": "LayoutBuilder"
     },
     {
       "name": "Login",
@@ -30,7 +24,11 @@
       "name": "NewsDetail",
       "pageSourceFile": "src/main/ets/pages/NewsDetail.ets",
       "buildFunction": "NewsDetailBuilder"
+    },
+    {
+      "name": "Plants",
+      "pageSourceFile": "src/main/ets/pages/Plants.ets",
+      "buildFunction": "PlantsBuilder"
     }
-
   ]
 }

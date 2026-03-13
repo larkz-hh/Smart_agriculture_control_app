@@ -1,12 +1,20 @@
 import http from '@ohos.net.http';
 import util from '@ohos.util';
 import { AppConfig } from '../config/AppConfig';
-import { ApiMessage, StreamResponseModel } from '../model/AiApiModel';
+import { ApiMessage, StreamResponseModel,NonStreamResponseModel } from '../model/AiApiModel';
 import { MessageModel } from '../model/MessageModel';
-
+export interface PlantInfo {
+  light: string;
+  soilTemp: string;
+  soilMoisture: string;
+  airTemp: string;
+  airMoisture: string;
+  carbonDioxide: string;
+}
 interface Thinking{
   "type": string ;
 }
+
 
 export class AiService {
   private static readonly API_KEY = AppConfig.API_KEY;
@@ -102,5 +110,66 @@ export class AiService {
       console.error('网络请求失败');
       onError('网络请求失败，请稍后重试。');
     }
+  }
+
+
+  //非流式，用于植物百科
+  static async getPlantInfo(plantName: string, stage: string): Promise<PlantInfo | null> {
+    let httpRequest = http.createHttp();
+
+    let systemPrompt = `你现在是一个专业的农业环境数据API。请根据用户提供的【作物名称】和【生长时期】，严格返回该时期适宜的生长环境数据。
+    警告：你必须且只能返回合法的JSON对象，绝对不要包含任何Markdown标记（如 \`\`\`json ），不要任何废话解释！
+    JSON 必须包含以下5个字段：
+    {
+      "light": "适宜光照强度描述(最小值和最大值，单位Lx)",
+      "soilTemp": "土壤适宜温度描述(最小值和最大值,单位℃)",
+      "soilMoisture": "土壤适宜湿度描述(最小值和最大值)",
+      "airTemp": "空气适宜温度描述(最小值和最大值，单位℃)",
+      "airMoisture": "空气适宜湿度(最小值和最大值)",
+      "carbonDioxide": "二氧化碳适宜浓度(最小值和最大值，单位ppm)"
+    }`;
+
+    let userPrompt = `作物名称：${plantName}，生长时期：${stage}`;
+    let apiMessages: ApiMessage[] = [
+      new ApiMessage('system', systemPrompt),
+      new ApiMessage('user', userPrompt)
+    ];
+
+    try {
+      let response = await httpRequest.request(AiService.API_URL, {
+        method: http.RequestMethod.POST,
+        header: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${AiService.API_KEY}`
+        },
+        extraData: JSON.stringify({
+          model: AiService.MODEL_NAME,
+          messages: apiMessages,
+          stream: false,
+          thinking: ({ "type": "disabled" } as Thinking)
+        }),
+        connectTimeout: 30000,
+        readTimeout: 30000
+      });
+
+      if (response.responseCode === 200) {
+        let resObj = JSON.parse(response.result as string) as NonStreamResponseModel;
+        if (resObj.choices && resObj.choices.length > 0) {
+          let message = resObj.choices[0].message;
+          if (message && message.content) {
+            let content = message.content;
+            //代替可能存在的 ```json 标记
+            content = content.replace(/```json/g, '').replace(/```/g, '').trim();
+            let plantInfo = JSON.parse(content) as PlantInfo;
+            return plantInfo;
+          }
+        }
+      }
+    } catch (err) {
+      console.error('获取植物环境信息失败:', JSON.stringify(err));
+    } finally {
+      httpRequest.destroy();
+    }
+    return null;
   }
 }

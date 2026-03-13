@@ -18,18 +18,75 @@ export struct Home {
     this.newsList = await NewsService.getAgricultureNews();
     this.isLoading = false;
   }
+  @Builder QuickEntryItem(title: string, iconUrl: ResourceStr, onClickAction: () => void) {
+    Column({ space: 8 }) {
+      Image(iconUrl)
+        .width(40)
+        .height(40)
+        .objectFit(ImageFit.Contain)
+
+      Text(title)
+        .fontSize(14)
+        .fontColor('#333')
+        .fontWeight(FontWeight.Medium)
+    }
+    .layoutWeight(1)
+    .onClick(() => onClickAction())
+  }
+
 
   build() {
     Column() {
       Column() {
-        Text('xxxxx')
-          .fontSize(16)
-          .fontColor('#999')
+        Row() {
+          Column() {
+            Text('智慧农业工作台')
+              .fontSize(22)
+              .fontWeight(FontWeight.Bold)
+              .fontColor('#1A1A1A')
+            Text('随时掌握农场动态，科学种植')
+              .fontSize(12)
+              .fontColor('#666')
+              .margin({ top: 4 })
+          }.alignItems(HorizontalAlign.Start)
+          Blank()
+        }
+        .width('100%')
+        .padding({ left: 15, right: 15, top: 15, bottom: 15 })
+
+        //快捷导航
+        Row() {
+          this.QuickEntryItem('植物百科', $r('app.media.app_icon'), () => {
+            if (this.pathStack) {
+              this.pathStack.pushPathByName('Plants', null);
+            }
+          })
+
+          this.QuickEntryItem('种植记录', $r('app.media.app_icon'), () => {
+            // TODO: 跳转到种植记录页
+            console.info('点击了种植记录');
+          })
+
+          this.QuickEntryItem('添加设备', $r('app.media.app_icon'), () => {
+            // TODO: 跳转到添加设备/扫码页
+            console.info('点击了添加设备');
+          })
+        }
+        .width('92%')
+        .padding({ top: 25, bottom: 25 })
+        .backgroundColor(Color.White)
+        .borderRadius(16)
+        .shadow({ radius: 10, color: '#0A000000', offsetY: 4 })
+        .margin({ bottom: 20 })
       }
       .width('100%')
-      .height(200)
       .backgroundColor('#E8F5E9')
-      .justifyContent(FlexAlign.Center)
+      .alignItems(HorizontalAlign.Center)
+
+      // .width('100%')
+      // .height(200)
+      // .backgroundColor('#E8F5E9')
+      // .justifyContent(FlexAlign.Center)
 
       // 新闻列表
       Column() {
@@ -93,6 +150,7 @@ export struct Home {
       }
       .layoutWeight(1)
       .backgroundColor(Color.White)
+      .borderRadius({ topLeft: 24, topRight: 24 })
     }
     .width('100%')
     .height('100%')

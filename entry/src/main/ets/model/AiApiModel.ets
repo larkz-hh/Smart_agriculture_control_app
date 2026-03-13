@@ -21,3 +21,13 @@ export class ChoiceModel {
 export class StreamResponseModel {
   choices?: ChoiceModel[];
 }
+
+class NonStreamMessage {
+  content?: string;
+}
+class NonStreamChoice {
+  message?: NonStreamMessage;
+}
+export class NonStreamResponseModel {
+  choices?: NonStreamChoice[];
+}
