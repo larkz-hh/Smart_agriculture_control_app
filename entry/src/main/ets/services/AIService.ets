@@ -1,7 +1,8 @@
 import http from '@ohos.net.http';
 import util from '@ohos.util';
 import { AppConfig } from '../config/AppConfig';
-import { ApiMessage, StreamResponseModel,NonStreamResponseModel } from '../model/AiApiModel';
+import { ApiMessage, StreamResponseModel,NonStreamResponseModel, VisionContentItem,
+  VisionImageUrl } from '../model/AiApiModel';
 import { MessageModel } from '../model/MessageModel';
 export interface PlantInfo {
   light: string;
@@ -14,6 +15,12 @@ export interface PlantInfo {
 interface Thinking{
   "type": string ;
 }
+interface ChatRequestBody {
+  model: string;
+  messages: ApiMessage[];
+  stream: boolean;
+  thinking?: Thinking; // 设为可选，视觉模型不传
+}
 
 
 export class AiService {
@@ -24,6 +31,7 @@ export class AiService {
   /**
    * 发送流式对话请求
    * @param chatHistory 当前的对话历史
+   * @param isDeepThinking 是否开启深度思考
    * @param onChunk 每次收到字时的回调
    * @param onFinish 对话结束时的回调
    * @param onError 发生错误时的回调
@@ -36,23 +44,54 @@ export class AiService {
     onError: (err: string) => void
   ) {
     let apiMessages: ApiMessage[] = [];
-    apiMessages.push(new ApiMessage('system', '你是一个智慧农业助手，懂得许多农业知识，旨在为广大农户科普农业知识和技术性指导'));
+    apiMessages.push(new ApiMessage('system', '你是一个智慧农业助手。你精通各种农业知识，耐心解答，科普农业知识。如果用户发了植物照片，请帮他分析病虫害或生长状态。'));
+    let hasImage = false;  //标记本次对话是否有图片
 
     for (let i = 0; i < chatHistory.length; i++) {
       let msg = chatHistory[i];
-      if (msg.content) {
-        apiMessages.push(new ApiMessage(msg.role, msg.content));
+
+      // 如果这条消息带有图片，就组装成Vision的数组格式
+      if (msg.imageBase64) {
+        hasImage = true;
+        let visionContent: VisionContentItem[] = [];
+        // 放入图片
+        visionContent.push(new VisionContentItem('image_url', undefined, new VisionImageUrl(msg.imageBase64)));
+        //如果有文字，放入文字
+        if (msg.content) {
+          visionContent.push(new VisionContentItem('text', msg.content));
+        }
+        apiMessages.push(new ApiMessage(msg.role, visionContent));
+      } else {
+        // 普通纯文本对话
+        if (msg.content) {
+          apiMessages.push(new ApiMessage(msg.role, msg.content));
+        }
       }
+    }
+
+    let requestPayload: ChatRequestBody = {
+      model: AiService.MODEL_NAME,
+      messages: apiMessages,
+      stream: true
+    };
+    if (!hasImage) {
+      requestPayload.thinking = { type: isDeepThinking ? 'enabled' : 'disabled' };
     }
 
     let httpRequest = http.createHttp();
     let buffer = '';
-    //监听流式返回
+
     httpRequest.on('dataReceive', (data: ArrayBuffer) => {
-      // let textDecoder = new util.TextDecoder('utf-8');
-      // buffer += textDecoder.decodeWithStream(new Uint8Array(data));
       let textDecoder = util.TextDecoder.create('utf-8');
-      buffer += textDecoder.decodeToString(new Uint8Array(data), { stream: true });
+      let newText = textDecoder.decodeToString(new Uint8Array(data), { stream: true });
+      buffer += newText;
+
+
+      if (buffer.includes('"error"')) {
+        console.error('【AI接口报错】', buffer);
+        onError('\n[系统提示：AI接口报错，可能是图片过大或网络问题]');
+        return;
+      }
 
       let lines = buffer.split('\n');
       buffer = lines.pop() || '';
@@ -74,7 +113,7 @@ export class AiService {
             if (parsedObj.choices && parsedObj.choices.length > 0) {
               let deltaContent = parsedObj.choices[0].delta?.content;
               if (deltaContent) {
-                onChunk(deltaContent); // 把拿到的字传给前端 UI
+                onChunk(deltaContent);
               }
             }
           } catch (e) {
@@ -89,7 +128,6 @@ export class AiService {
       httpRequest.destroy();
     });
 
-    //发起请求
     try {
       await httpRequest.requestInStream(AiService.API_URL, {
         method: http.RequestMethod.POST,
@@ -97,12 +135,7 @@ export class AiService {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${AiService.API_KEY}`
         },
-        extraData: JSON.stringify({
-          model: AiService.MODEL_NAME,
-          messages: apiMessages,
-          stream: true,
-          thinking: ({ "type": isDeepThinking ? 'enabled' : 'disabled' } as Thinking)
-        }),
+        extraData: JSON.stringify(requestPayload),
         connectTimeout: 60000,
         readTimeout: 60000
       });
@@ -171,5 +204,49 @@ export class AiService {
       httpRequest.destroy();
     }
     return null;
+  }
+  static async generateChatTitle(firstMessage: string): Promise<string> {
+    let httpRequest = http.createHttp();
+
+
+    let systemPrompt = `你是一个标题生成器。请根据用户发的内容，用不超过6个汉字总结核心意思作为标题。
+    要求：只能输出标题文字，绝对不要任何标点符号、解释或 Markdown 标记。`;
+
+    try {
+      let response = await httpRequest.request(AiService.API_URL, {
+        method: http.RequestMethod.POST,
+        header: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${AiService.API_KEY}`
+        },
+        extraData: JSON.stringify({
+          model: AiService.MODEL_NAME,
+          messages: [
+            new ApiMessage('system', systemPrompt),
+            new ApiMessage('user', firstMessage)
+          ],
+          stream: false,
+          thinking: { "type": "disabled" } as Thinking
+        }),
+        connectTimeout: 10000,
+        readTimeout: 10000
+      });
+
+      if (response.responseCode === 200) {
+        let resObj = JSON.parse(response.result as string) as NonStreamResponseModel;
+        if (resObj.choices && resObj.choices.length > 0) {
+          let message = resObj.choices[0].message;
+          if (message && message.content) {
+            //去除可能的换行符
+            return message.content.trim().replace(/\n/g, '');
+          }
+        }
+      }
+    } catch (err) {
+      console.error('生成标题失败:', err);
+    } finally {
+      httpRequest.destroy();
+    }
+    return "新聊天"; //兜底标题
   }
 }

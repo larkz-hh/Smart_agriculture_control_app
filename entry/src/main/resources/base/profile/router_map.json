@@ -29,6 +29,11 @@
       "name": "Plants",
       "pageSourceFile": "src/main/ets/pages/Plants.ets",
       "buildFunction": "PlantsBuilder"
+    },
+    {
+      "name": "History",
+      "pageSourceFile": "src/main/ets/pages/History.ets",
+      "buildFunction": "HistoryBuilder"
     }
   ]
 }

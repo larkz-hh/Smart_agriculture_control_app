@@ -1,3 +1,4 @@
+import { DatabaseManager } from "../data/DatabaseManager";
 import { Chat } from "./Chat";
 import { Home } from "./Control";
 import { Mine } from "./Mine";
@@ -20,6 +21,9 @@ export function LayoutBuilder() {
 struct Layout {
   @Local currentIndex: number = 0
   pathStack: NavPathStack = new NavPathStack();
+  aboutToAppear(): void {
+    DatabaseManager.init(getContext(this));
+  }
   tabData: TabClass[] = [
     {
       text: '控制',
@@ -65,7 +69,7 @@ struct Layout {
             } else if(this.currentIndex === 1){
               Monitor()
             }else if(this.currentIndex === 2){
-              Chat()
+              Chat({ pathStack: this.pathStack })
             }else if(this.currentIndex ===3){
               Mine({ pathStack: this.pathStack })
             }
