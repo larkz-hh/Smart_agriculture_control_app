@@ -3,6 +3,7 @@ import { Chat } from "./Chat";
 import { Home } from "./Control";
 import { Mine } from "./Mine";
 import { Monitor } from "./Monitor";
+import emitter from '@ohos.events.emitter';
 
 // 跳转页面入口函数
 interface TabClass {
@@ -23,6 +24,9 @@ struct Layout {
   pathStack: NavPathStack = new NavPathStack();
   aboutToAppear(): void {
     DatabaseManager.init(getContext(this));
+    emitter.on({ eventId: 1001 }, () => {
+      this.currentIndex = 2;
+    });
   }
   tabData: TabClass[] = [
     {

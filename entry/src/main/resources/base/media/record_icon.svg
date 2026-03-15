@@ -1,0 +1,13 @@
+<svg viewBox="0 0 24 24" width="24" height="24" xmlns="http://www.w3.org/2000/svg">
+    <!-- 文档轮廓 -->
+    <path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6z" fill="none" stroke="#00B96B" stroke-width="2" stroke-linejoin="round"/>
+    <!-- 右上角折角 -->
+    <path d="M14 3v6h6" fill="none" stroke="#00B96B" stroke-width="2" stroke-linejoin="round"/>
+
+    <!-- 中间的植物根茎 -->
+    <path d="M12 17v-4" stroke="#00B96B" stroke-width="2" stroke-linecap="round"/>
+    <!-- 左侧叶子 -->
+    <path d="M12 15C10 15 9 13.5 9 12C10.5 12 12 13 12 15Z" fill="#00B96B"/>
+    <!-- 右侧叶子(稍高) -->
+    <path d="M12 14C14 14 15 12.5 15 11C13.5 11 12 12 12 14Z" fill="#00B96B"/>
+</svg>

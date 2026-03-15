@@ -1,24 +1,92 @@
 import { NewsItem, NewsService } from '../services/NewsService';
+import emitter from '@ohos.events.emitter';
+import { abilityAccessCtrl, common } from '@kit.AbilityKit';
+import { geoLocationManager } from '@kit.LocationKit';
+import { AiService, WeatherInfo } from '../services/AIService';
 
 @Component
 export struct Home {
 
   pathStack?: NavPathStack;
-
-  @State newsList: NewsItem[] = [];
-  @State isLoading: boolean = true;
+  @StorageLink('homeNewsCache') newsList: NewsItem[] = [];
+  @State isLoading: boolean = false;
+  //@State newsList: NewsItem[] = [];
+  @StorageLink('homeWeatherCache') weatherData: WeatherInfo | undefined | null = undefined;
+  @State isWeatherLoading: boolean = false;
+  //@State isLoading: boolean = true;
+  //@State weatherData: WeatherInfo | null = null;
+  //@State isWeatherLoading: boolean = true;
 
   aboutToAppear() {
     this.loadNews();
+    this.initWeather();
   }
-
+  //加载新闻
   async loadNews() {
-    this.isLoading = true;
-    this.newsList = await NewsService.getAgricultureNews();
+    if (this.newsList.length === 0) {
+      this.isLoading = true;
+    }
+    let latestNews = await NewsService.getAgricultureNews();
+    if (latestNews && latestNews.length > 0) {
+      this.newsList = latestNews;
+    }
     this.isLoading = false;
   }
+  //初始化天气
+  async initWeather() {
+    //静默刷新
+    if (!this.weatherData) {
+      this.isWeatherLoading = true;
+    }
+    try {
+      let context = getContext(this) as common.UIAbilityContext;
+      let atManager = abilityAccessCtrl.createAtManager();
+      //向用户请求定位权限
+      let authResult = await atManager.requestPermissionsFromUser(context, [
+        'ohos.permission.APPROXIMATELY_LOCATION',
+        'ohos.permission.LOCATION'
+      ]);
+      let finalLocationName = '杭州市(默认)';
+      //同意了权限
+      if (authResult.authResults[0] === 0) {
+        //获取经纬度
+        let location = await geoLocationManager.getCurrentLocation();
+        try {
+          //逆地理编码
+          let reverseRequest: geoLocationManager.ReverseGeoCodeRequest = {
+            latitude: location.latitude,
+            longitude: location.longitude,
+            maxItems: 1
+          };
+          let placeList = await geoLocationManager.getAddressesFromLocation(reverseRequest);
+          if (placeList && placeList.length > 0) {
+            let place = placeList[0];
+            let prov = place.administrativeArea ? place.administrativeArea : '';
+            let city = place.locality ? place.locality : '';
+            let dist = place.subLocality ? place.subLocality : '';
+            finalLocationName = `${prov}${city}${dist}`;
+            if (!finalLocationName) {
+              finalLocationName = place.placeName ? place.placeName : '未知位置';
+            }
+          }
+        } catch (e) {
+          console.error('逆地理编码失败，使用经纬度代替');
+          finalLocationName = `经度${location.longitude.toFixed(1)},纬度${location.latitude.toFixed(1)}`;
+        }
+      }
 
-  // 🌟 新增：天气底部小参数的通用 Builder
+      //获取天气
+      let aiWeather = await AiService.getWeatherData(finalLocationName);
+      if (aiWeather) {
+        this.weatherData = aiWeather;
+      }
+    } catch (error) {
+      console.error('天气初始化失败，请打手机开位置权限:', JSON.stringify(error));
+    } finally {
+      this.isWeatherLoading = false;
+    }
+  }
+
   @Builder WeatherDetailItem(label: string, value: string) {
     Column({ space: 4 }) {
       Text(label).fontSize(12).fontColor('#666')
@@ -28,64 +96,56 @@ export struct Home {
     .layoutWeight(1)
   }
 
-  // 🌟 新增：天气预报区 Builder (静态写死数据)
+  //天气预报区
   @Builder WeatherCard() {
     Column() {
-      // 第一行：地点和天气状态
-      Row() {
-        Text('📍 杭州市·西湖区智慧农场')
-          .fontSize(14)
-          .fontColor('#333')
-          .fontWeight(FontWeight.Medium)
-        Blank()
-        Text('🌤 晴转多云')
-          .fontSize(14)
-          .fontColor('#00B96B')
-          .fontWeight(FontWeight.Bold)
-      }
-      .width('100%')
+      if (this.isWeatherLoading) {
+        //加载中状态
+        LoadingProgress().width(30).height(30).margin({ top: 20, bottom: 20 })
+        Text('加载当地气象数据中...').fontSize(12).fontColor('#999')
+      } else if (this.weatherData) {
+        //动态数据渲染
+        Row() {
+          Text(`${this.weatherData.location}`)
+            .fontSize(14).fontColor('#333').fontWeight(FontWeight.Medium)
+          Blank()
+          Text(`${this.weatherData.condition}`)
+            .fontSize(14).fontColor('#00B96B').fontWeight(FontWeight.Bold)
+        }.width('100%')
 
-      // 第二行：主温度和最高最低温
-      Row() {
-        Text('26°C')
-          .fontSize(36)
-          .fontWeight(FontWeight.Bold)
-          .fontColor('#333')
+        Row() {
+          Text(`${this.weatherData.currentTemp}°C`)
+            .fontSize(36).fontWeight(FontWeight.Bold).fontColor('#333')
+          Text(`最低 ${this.weatherData.lowTemp}°C / 最高 ${this.weatherData.highTemp}°C`)
+            .fontSize(12).fontColor('#666').margin({ left: 12, top: 12 })
+        }
+        .width('100%').margin({ top: 10, bottom: 15 }).alignItems(VerticalAlign.Bottom)
 
-        Text('最高 28°C / 最低 18°C')
-          .fontSize(12)
-          .fontColor('#666')
-          .margin({ left: 12, top: 12 })
+        Row() {
+          this.WeatherDetailItem('降水', this.weatherData.precipitation)
+          Divider().vertical(true).height(20).color('#E0E0E0')
+          this.WeatherDetailItem('空气湿度', this.weatherData.humidity)
+          Divider().vertical(true).height(20).color('#E0E0E0')
+          this.WeatherDetailItem('风速风向', this.weatherData.wind)
+          Divider().vertical(true).height(20).color('#E0E0E0')
+          this.WeatherDetailItem('光照', this.weatherData.light)
+        }
+        .width('100%').padding({ top: 12 }).border({ width: { top: 1 }, color: '#F0F0F0' })
+      } else {
+        Text('天气初始化失败，请打手机开位置权限').fontSize(14).fontColor('#999').margin({ top: 20, bottom: 20 })
       }
-      .width('100%')
-      .margin({ top: 10, bottom: 15 })
-      .alignItems(VerticalAlign.Bottom)
-
-      // 第三行：详细农业气象参数 (降水、湿度、风、光照)
-      Row() {
-        this.WeatherDetailItem('降水', '0 mm')
-        // 分割线
-        Divider().vertical(true).height(20).color('#E0E0E0')
-        this.WeatherDetailItem('空气湿度', '45%')
-        Divider().vertical(true).height(20).color('#E0E0E0')
-        this.WeatherDetailItem('风速风向', '东南风 3级')
-        Divider().vertical(true).height(20).color('#E0E0E0')
-        this.WeatherDetailItem('光照', '12000 Lx')
-      }
-      .width('100%')
-      .padding({ top: 12 })
-      .border({ width: { top: 1 }, color: '#F0F0F0' }) // 顶部加个极细的分割线
     }
     .width('92%')
+    .constraintSize({ minHeight: 140 })
+    .justifyContent(FlexAlign.Center)
     .padding(15)
-    // 使用带有轻微渐变或纯白的背景，增加层次感
     .backgroundColor(Color.White)
     .borderRadius(16)
     .shadow({ radius: 10, color: '#0A000000', offsetY: 4 })
     .margin({ bottom: 15 })
   }
 
-  // 金刚区 Item Builder
+  //金刚区
   @Builder QuickEntryItem(title: string, iconUrl: ResourceStr, onClickAction: () => void) {
     Column({ space: 8 }) {
       Image(iconUrl)
@@ -105,7 +165,6 @@ export struct Home {
 
   build() {
     Column() {
-      // --- 上半部分：标题 + 天气 + 金刚区 ---
       Column() {
         Row() {
           Column() {
@@ -122,24 +181,29 @@ export struct Home {
         }
         .width('100%')
         .padding({ left: 15, right: 15, top: 15, bottom: 15 })
-
-        // 🌟 插入天气预报卡片
         this.WeatherCard()
-
-        // 快捷导航 (金刚区)
+        //快捷导航(金刚区)
         Row() {
-          this.QuickEntryItem('植物百科', $r('app.media.app_icon'), () => {
+          this.QuickEntryItem('植物百科', $r('app.media.plants_icon'), () => {
             if (this.pathStack) {
               this.pathStack.pushPathByName('Plants', null);
             }
           })
 
-          this.QuickEntryItem('种植记录', $r('app.media.app_icon'), () => {
+          this.QuickEntryItem('种植记录', $r('app.media.record_icon'), () => {
             console.info('点击了种植记录');
           })
 
-          this.QuickEntryItem('添加设备', $r('app.media.app_icon'), () => {
+          this.QuickEntryItem('添加设备', $r('app.media.device_add_icon'), () => {
             console.info('点击了添加设备');
+          })
+          this.QuickEntryItem('拍照识病', $r('app.media.diagnosis_icon'), () => {
+            // 发送事件1001,通知Layout切换到Chat页面
+            emitter.emit({ eventId: 1001 });
+            //延迟 200毫秒发送事件1002,给系统一点时间把Chat页面渲染出来，再拉起相机
+            setTimeout(() => {
+              emitter.emit({ eventId: 1002 });
+            }, 200);
           })
         }
         .width('92%')
@@ -152,9 +216,10 @@ export struct Home {
       .width('100%')
       .backgroundColor('#E8F5E9')
       .alignItems(HorizontalAlign.Center)
+      .expandSafeArea([SafeAreaType.SYSTEM],[SafeAreaEdge.TOP,SafeAreaEdge.BOTTOM])
 
 
-      // --- 下半部分：新闻列表 ---
+      // 新闻列表
       Column() {
         Text('农业资讯')
           .fontSize(18)
@@ -207,8 +272,6 @@ export struct Home {
               })
             })
           }
-          // 这里的 layoutWeight(1) 会让资讯列表吃掉屏幕上所有剩下的空间
-          // 因为上半部分变高了，所以资讯列表的比例自然就被压缩减小了
           .layoutWeight(1)
           .divider({ strokeWidth: 1, color: '#F5F5F5', startMargin: 15, endMargin: 15 })
         }
@@ -217,6 +280,7 @@ export struct Home {
       .backgroundColor(Color.White)
       .borderRadius({ topLeft: 24, topRight: 24 })
     }
+    .expandSafeArea([SafeAreaType.SYSTEM],[SafeAreaEdge.TOP,SafeAreaEdge.BOTTOM])
     .width('100%')
     .height('100%')
     .backgroundColor('#F5F5F5')

@@ -1,0 +1,17 @@
+<svg viewBox="0 0 24 24" width="24" height="24" xmlns="http://www.w3.org/2000/svg">
+    <!-- 传感器机身 -->
+    <rect x="4" y="9" width="13" height="11" rx="2" fill="none" stroke="#00B96B" stroke-width="2"/>
+    <!-- 传感器指示灯/纹理 -->
+    <line x1="7" y1="14" x2="11" y2="14" stroke="#00B96B" stroke-width="2" stroke-linecap="round"/>
+
+    <!-- 顶部天线杆 -->
+    <line x1="10" y1="9" x2="10" y2="5" stroke="#00B96B" stroke-width="2" stroke-linecap="round"/>
+    <!-- 顶部天线圆球 -->
+    <circle cx="10" cy="3.5" r="1.5" fill="#00B96B"/>
+
+    <!-- 右下角的实心加号徽章 (加白边形成层叠裁剪效果) -->
+    <circle cx="18" cy="18" r="5" fill="#00B96B" stroke="#ffffff" stroke-width="1.5"/>
+    <!-- 内部白色的十字符号 -->
+    <line x1="15.5" y1="18" x2="20.5" y2="18" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round"/>
+    <line x1="18" y1="15.5" x2="18" y2="20.5" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round"/>
+</svg>

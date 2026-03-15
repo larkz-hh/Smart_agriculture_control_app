@@ -1,0 +1,13 @@
+<svg viewBox="0 0 24 24" width="24" height="24" xmlns="http://www.w3.org/2000/svg">
+    <!-- 书本轮廓 (空心线条) -->
+    <path d="M4 8.5C6.5 7 9 7 12 9.5C15 7 17.5 7 20 8.5V19.5C17.5 18 15 18 12 20.5C9 18 6.5 18 4 19.5V8.5Z" fill="none" stroke="#00B96B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <!-- 书脊中缝 -->
+    <line x1="12" y1="9.5" x2="12" y2="20.5" stroke="#00B96B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <!-- 左侧嫩叶 (实心) -->
+    <path d="M12 9.5C9.5 9.5 7 7.5 7 4.5C9.5 4.5 12 6.5 12 9.5Z" fill="#00B96B"/>
+
+    <!-- 右侧嫩叶 (实心，稍大一点，错落有致) -->
+    <path d="M12 8.5C12 5 14.5 3 17.5 3C17.5 6 15 8.5 12 8.5Z" fill="#00B96B"/>
+</svg>

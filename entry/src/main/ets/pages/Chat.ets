@@ -7,6 +7,7 @@ import util from '@ohos.util';
 import { common } from '@kit.AbilityKit';
 import { AiService } from '../services/AIService';
 import { DatabaseManager } from '../data/DatabaseManager';
+import emitter from '@ohos.events.emitter';
 
 @ComponentV2
 export struct Chat {
@@ -28,6 +29,11 @@ export struct Chat {
 
   aboutToAppear() {
     this.mdController.setThreadRenderEnable(true).setTextColor('#333333').setTextSize(16);
+    emitter.on({ eventId: 1002 }, () => {
+      this.inputValue = "请帮我看看这个植物的叶子怎么了？得了什么病？应该怎么用药防治？";
+      // 自动触发底部的拍照功能
+      this.takePhoto();
+    });
   }
 
   //调用系统相册选择
@@ -318,14 +324,18 @@ export struct Chat {
           .selectedColor('#00B96B').width(36).height(20).margin({ left: 8 })
           .onChange((isOn: boolean) => this.isDeepThinking = isOn)
       }.width('100%').padding({ left: 15, right: 15, top: 8, bottom: 2 }).backgroundColor(Color.White)
-
       Row({ space: 10 }) {
-        TextInput({ text: this.inputValue, placeholder: '描述植物的问题...' })
-          .layoutWeight(1).height(45).enterKeyType(EnterKeyType.Send)
-          .onChange((val: string) => this.inputValue = val)
+        // $$ 进行双向绑定
+        TextArea({ text: $$this.inputValue, placeholder: '描述植物的问题...' })
+          .layoutWeight(1)
+          .constraintSize({ minHeight: 45, maxHeight: 120 })
+          .enterKeyType(EnterKeyType.Send)
+          .backgroundColor('#F5F5F5')
+          .borderRadius(20)
+          //删除onChange() 方法
           .onSubmit(() => this.sendMessage())
 
-        //动态按钮逻辑：有字或有图时显示发送，否则显示 + 号
+        // 动态按钮逻辑保持不变
         if (this.inputValue.trim().length > 0 || this.selectedImageUri.length > 0) {
           Button('发送')
             .height(45).backgroundColor(this.isLoading ? '#CCC' : '#00B96B')
@@ -339,7 +349,7 @@ export struct Chat {
               this.isSheetShow = true;
             })
         }
-      }.padding(10).backgroundColor(Color.White)
+      }.padding(10).backgroundColor(Color.White).alignItems(VerticalAlign.Bottom)
     }
     .expandSafeArea([SafeAreaType.SYSTEM],[SafeAreaEdge.TOP,SafeAreaEdge.BOTTOM])
     .width('100%').height('100%')

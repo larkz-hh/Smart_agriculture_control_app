@@ -12,6 +12,17 @@ export interface PlantInfo {
   airMoisture: string;
   carbonDioxide: string;
 }
+export interface WeatherInfo {
+  location: string;
+  condition: string;
+  currentTemp: number;
+  highTemp: number;
+  lowTemp: number;
+  precipitation: string;
+  humidity: string;
+  wind: string;
+  light: string;
+}
 interface Thinking{
   "type": string ;
 }
@@ -249,4 +260,64 @@ export class AiService {
     }
     return "新聊天"; //兜底标题
   }
+  static async getWeatherData(locationName: string): Promise<WeatherInfo | null> {
+    let httpRequest = http.createHttp();
+
+    // 强迫 AI 返回我们要的严格 JSON
+    let systemPrompt = `你现在是一个专业的农业气象数据API。
+    用户会提供一个地理位置。如果你能联网获取当前真实天气请使用真实数据；如果不能，请根据该地当前的季节和气候，模拟一份极其合理的农业天气数据。
+    警告：必须且只能返回合法的JSON对象，绝对不要包含 Markdown 标记（如 \`\`\`json ），不要任何解释！
+    JSON 必须严格包含以下字段：
+    {
+      "location": "地点名称",
+      "condition": "天气状况(如:晴转多云/小雨等)",
+      "currentTemp": 26,
+      "highTemp": 28,
+      "lowTemp": 18,
+      "precipitation": "0 mm",
+      "humidity": "45%",
+      "wind": "东南风 3级",
+      "light": "12000 Lx"
+    }`;
+
+    let userPrompt = `当前位置：${locationName}`;
+
+    try {
+      let response = await httpRequest.request(AiService.API_URL, {
+        method: http.RequestMethod.POST,
+        header: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${AiService.API_KEY}`
+        },
+        extraData: JSON.stringify({
+          model: AiService.MODEL_NAME,
+          messages: [
+            new ApiMessage('system', systemPrompt),
+            new ApiMessage('user', userPrompt)
+          ],
+          stream: false,
+          thinking: { "type": "disabled" } as Thinking
+        }),
+        connectTimeout: 30000,
+        readTimeout: 30000
+      });
+
+      if (response.responseCode === 200) {
+        let resObj = JSON.parse(response.result as string) as NonStreamResponseModel;
+        if (resObj.choices && resObj.choices.length > 0) {
+          let message = resObj.choices[0].message;
+          if (message && message.content) {
+            let content = message.content.replace(/```json/g, '').replace(/```/g, '').trim();
+            return JSON.parse(content) as WeatherInfo;
+          }
+        }
+      }
+    } catch (err) {
+      console.error('获取天气信息失败:', JSON.stringify(err));
+    } finally {
+      httpRequest.destroy();
+    }
+    return null;
+  }
+
 }
