@@ -71,7 +71,7 @@ struct Layout {
             if(this.currentIndex === 0){
               Home({ pathStack: this.pathStack })
             } else if(this.currentIndex === 1){
-              Monitor()
+              Monitor({ pathStack: this.pathStack })
             }else if(this.currentIndex === 2){
               Chat({ pathStack: this.pathStack })
             }else if(this.currentIndex ===3){
