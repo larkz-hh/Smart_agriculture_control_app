@@ -34,7 +34,6 @@ export struct Mine {
     }
   }
 
-  // 列表数据
   private mineList: MineItem[] = [
     { icon: $r('app.media.app_icon'), text: '设置' },
     { icon: $r('app.media.app_icon'), text: '关于智慧农业' },
@@ -43,21 +42,28 @@ export struct Mine {
 
   // 选择图片
   async selectImage() {
-    if(this.isLoggedIn){
+    if (this.isLoggedIn) {
       try {
+        //创建配置对象
         let PhotoSelectOptions = new photoAccessHelper.PhotoSelectOptions();
+        //过滤条件
         PhotoSelectOptions.MIMEType = photoAccessHelper.PhotoViewMIMETypes.IMAGE_TYPE;
+        //限制最大选择数量
         PhotoSelectOptions.maxSelectNumber = 1;
+        //实例化相册选择器组件
         let photoPicker = new photoAccessHelper.PhotoViewPicker();
+        //拉起系统相册界面
         let photoSelectResult = await photoPicker.select(PhotoSelectOptions);
         if (photoSelectResult && photoSelectResult.photoUris.length > 0) {
-        this.userAvatar = photoSelectResult.photoUris[0];
+          this.userAvatar = photoSelectResult.photoUris[0];
         }
-    } catch (err) {
+      } catch (err) {
         console.error('PhotoViewPicker.select failed: ' + err);
       }
-    }else{
-      promptAction.showToast({message: '你还未登录'})
+    } else {
+      if (!this.isLoggedIn && this.pathStack) {
+        this.pathStack.pushPathByName('Login', null);
+      }
     }
   }
 
@@ -115,7 +121,6 @@ export struct Mine {
                 Text(this.savedUsername)
                   .fontSize(22)
                   .fontWeight(FontWeight.Bold)
-                Image($r('app.media.arrow_right_ic')).width(18).margin({ left: 10 })
               }
               Text(this.greeting + ', 欢迎回来').fontSize(14).fontColor('#999')
             } else {
@@ -124,6 +129,12 @@ export struct Mine {
                 Text('您还未登录')
                   .fontSize(22)
                   .fontWeight(FontWeight.Bold)
+                  .onClick(() => {
+                    if (!this.isLoggedIn && this.pathStack) {
+                      this.pathStack.pushPathByName('Login', null);
+                    }
+                  })
+                Image($r('app.media.arrow_right_ic')).width(18).margin({ left: 10 })
               }
               Text('点击此处登录 / 注册账号').fontSize(14).fontColor('#63AAAA')
                 .onClick(() => {
@@ -151,7 +162,7 @@ export struct Mine {
 
 
 
-        //  功能列表卡片
+        //功能列表
         Column() {
           ForEach(this.mineList, (item: MineItem, index: number) => {
             this.itemBuilder(item)

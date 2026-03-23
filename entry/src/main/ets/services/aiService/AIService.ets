@@ -1,9 +1,26 @@
 import http from '@ohos.net.http';
 import util from '@ohos.util';
-import { AppConfig } from '../config/AppConfig';
+import { AppConfig } from '../../config/AppConfig';
 import { ApiMessage, StreamResponseModel,NonStreamResponseModel, VisionContentItem,
-  VisionImageUrl } from '../model/AiApiModel';
-import { MessageModel } from '../model/MessageModel';
+  VisionImageUrl } from '../../model/AiApiModel';
+import { MessageModel } from '../../model/MessageModel';
+interface BaiduSpeechRequest {
+  format: string;
+  rate: number;
+  dev_pid: number;
+  channel: number;
+  cuid: string;
+  len: number;
+  speech: string;
+}
+
+// 🌟 修复报错：定义百度返回体结构
+interface BaiduSpeechResponse {
+  err_no: number;
+  err_msg: string;
+  result?: string[]; // 只有成功时才有这个字段，所以加 ? 号
+  sn?: string;
+}
 export interface PlantInfo {
   light: string;
   soilTemp: string;
@@ -34,6 +51,7 @@ interface ChatRequestBody {
 }
 
 
+
 export class AiService {
   private static readonly API_KEY = AppConfig.API_KEY;
   private static readonly API_URL = 'https://ark.cn-beijing.volces.com/api/v3/chat/completions';
@@ -47,6 +65,9 @@ export class AiService {
    * @param onFinish 对话结束时的回调
    * @param onError 发生错误时的回调
    */
+  /**
+   * 发送流式对话请求
+   */
   static async sendStreamChat(
     chatHistory: MessageModel[],
     isDeepThinking: boolean,
@@ -56,24 +77,19 @@ export class AiService {
   ) {
     let apiMessages: ApiMessage[] = [];
     apiMessages.push(new ApiMessage('system', '你是一个智慧农业助手。你精通各种农业知识，耐心解答，科普农业知识。如果用户发了植物照片，请帮他分析病虫害或生长状态。'));
-    let hasImage = false;  //标记本次对话是否有图片
+    let hasImage = false;
 
     for (let i = 0; i < chatHistory.length; i++) {
       let msg = chatHistory[i];
-
-      // 如果这条消息带有图片，就组装成Vision的数组格式
       if (msg.imageBase64) {
         hasImage = true;
         let visionContent: VisionContentItem[] = [];
-        // 放入图片
         visionContent.push(new VisionContentItem('image_url', undefined, new VisionImageUrl(msg.imageBase64)));
-        //如果有文字，放入文字
         if (msg.content) {
           visionContent.push(new VisionContentItem('text', msg.content));
         }
         apiMessages.push(new ApiMessage(msg.role, visionContent));
       } else {
-        // 普通纯文本对话
         if (msg.content) {
           apiMessages.push(new ApiMessage(msg.role, msg.content));
         }
@@ -92,15 +108,20 @@ export class AiService {
     let httpRequest = http.createHttp();
     let buffer = '';
 
+    // 🌟 核心修复：加一把锁，保证 onFinish 或 onError 只会执行一次！
+    let isFinished = false;
+
     httpRequest.on('dataReceive', (data: ArrayBuffer) => {
       let textDecoder = util.TextDecoder.create('utf-8');
       let newText = textDecoder.decodeToString(new Uint8Array(data), { stream: true });
       buffer += newText;
 
-
       if (buffer.includes('"error"')) {
         console.error('【AI接口报错】', buffer);
-        onError('\n[系统提示：AI接口报错，可能是图片过大或网络问题]');
+        if (!isFinished) {
+          isFinished = true;
+          onError('\n[系统提示：AI接口报错，可能是图片过大或网络问题]');
+        }
         return;
       }
 
@@ -113,7 +134,11 @@ export class AiService {
           let jsonStr = line.substring(6).trim();
 
           if (jsonStr === '[DONE]') {
-            onFinish();
+            // 🌟 如果没执行过，才执行完成回调
+            if (!isFinished) {
+              isFinished = true;
+              onFinish();
+            }
             continue;
           }
 
@@ -135,7 +160,11 @@ export class AiService {
     });
 
     httpRequest.on('dataEnd', () => {
-      onFinish();
+      // 🌟 防止 dataEnd 再次触发 onFinish 导致双重入库
+      if (!isFinished) {
+        isFinished = true;
+        onFinish();
+      }
       httpRequest.destroy();
     });
 
@@ -152,10 +181,64 @@ export class AiService {
       });
     } catch (err) {
       console.error('网络请求失败');
-      onError('网络请求失败，请稍后重试。');
+      if (!isFinished) {
+        isFinished = true;
+        onError('网络请求失败，请稍后重试。');
+      }
     }
   }
 
+
+
+  private static readonly BAIDU_API_KEY = AppConfig.API_KEY_BAIDU;
+
+  /**
+   * 百度语音识别接口
+   * @param base64Audio 音频的 base64 字符串
+   * @param audioLen 音频文件原始大小（字节数）
+   */
+  static async recognizeSpeech(base64Audio: string, audioLen: number): Promise<string> {
+    let httpRequest = http.createHttp();
+    let url = 'http://vop.baidu.com/server_api';
+
+    let requestBody: BaiduSpeechRequest = {
+      format: "pcm",
+      rate: 16000,
+      dev_pid: 1537,
+      channel: 1,
+      cuid: "harmony_agri_app",
+      len: audioLen,
+      speech: base64Audio
+    };
+
+    try {
+      let response = await httpRequest.request(url, {
+        method: http.RequestMethod.POST,
+        header: {
+          'Content-Type': 'application/json',
+          // 🌟 按照文档，API Key方式需要加 Bearer 前缀
+          'Authorization': `Bearer ${AiService.BAIDU_API_KEY}`
+        },
+        extraData: JSON.stringify(requestBody),
+        connectTimeout: 10000,
+        readTimeout: 10000
+      });
+
+      if (response.responseCode === 200) {
+        let resObj = JSON.parse(response.result as string) as BaiduSpeechResponse;
+        if (resObj.err_no === 0 && resObj.result && resObj.result.length > 0) {
+          return resObj.result[0]; // 返回识别到的文字
+        } else {
+          console.error('语音识别报错:', resObj.err_msg);
+        }
+      }
+    } catch (err) {
+      console.error('语音识别网络请求失败:', JSON.stringify(err));
+    } finally {
+      httpRequest.destroy();
+    }
+    return ""; // 失败返回空字符串
+  }
 
   //非流式，用于植物百科
   static async getPlantInfo(plantName: string, stage: string): Promise<PlantInfo | null> {

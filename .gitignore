@@ -11,3 +11,4 @@
 **/.test
 /.appanalyzer
 /entry/src/main/ets/config/AppConfig.ets
+/entry/src/main/ets/config/IotCoinfig.ets

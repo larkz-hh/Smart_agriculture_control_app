@@ -1,5 +1,5 @@
 import { promptAction } from '@kit.ArkUI';
-import { AiService, PlantInfo } from '../services/AIService';
+import { AiService, PlantInfo } from '../services/aiService/AIService';
 
 @Builder
 export function PlantsBuilder(name: string, param: Object) {

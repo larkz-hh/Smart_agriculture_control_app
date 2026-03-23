@@ -1,7 +1,7 @@
 import http from '@ohos.net.http';
 import App from '@system.app';
-import { AppConfig } from '../config/AppConfig';
-import {NewsItem, NewsResponse} from '../model/NewsModel';
+import { AppConfig } from '../../config/AppConfig';
+import {NewsItem, NewsResponse} from '../../model/NewsModel';
 
 
 

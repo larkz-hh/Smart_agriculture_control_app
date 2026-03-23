@@ -13,7 +13,7 @@ export struct AddDevice {
   // 绑定用户输入的设备ID
   @State inputDeviceId: string = '';
 
-  // 处理绑定逻辑
+  //处理绑定逻辑
   handleBindDevice() {
     if (!this.inputDeviceId.trim()) {
       promptAction.showToast({ message: '设备ID不能为空' });
@@ -25,7 +25,7 @@ export struct AddDevice {
 
     promptAction.showToast({ message: '设备添加成功！' });
 
-    // 添加成功后，返回上一页 (Monitor页面)
+    //添加成功后，返回上一页
     this.pathStack.pop();
   }
 
@@ -49,7 +49,7 @@ export struct AddDevice {
           .textAlign(TextAlign.Center)
           .padding({ left: 20, right: 20 })
 
-        // 输入框
+
         TextInput({ placeholder: '例如：agri_hub_001', text: this.inputDeviceId })
           .height(55)
           .width('90%')
@@ -59,12 +59,13 @@ export struct AddDevice {
             this.inputDeviceId = value;
           })
 
-        // 绑定按钮
+
         Button('立即绑定')
           .width('90%')
           .height(50)
           .backgroundColor('#00B96B')
           .margin({ top: 20 })
+
           .onClick(() => this.handleBindDevice())
 
       }

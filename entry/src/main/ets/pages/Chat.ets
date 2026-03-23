@@ -5,9 +5,12 @@ import { cameraPicker, camera } from '@kit.CameraKit';
 import { fileIo } from '@kit.CoreFileKit';
 import util from '@ohos.util';
 import { common } from '@kit.AbilityKit';
-import { AiService } from '../services/AIService';
+import { AiService } from '../services/aiService/AIService';
 import { DatabaseManager } from '../data/DatabaseManager';
 import emitter from '@ohos.events.emitter';
+import { abilityAccessCtrl } from '@kit.AbilityKit';
+import { promptAction } from '@kit.ArkUI';
+import { AudioService } from '../services/aiService/AudioService';
 
 @ComponentV2
 export struct Chat {
@@ -21,19 +24,56 @@ export struct Chat {
   @Local selectedImageUri: string = '';
   @Local selectedImageBase64: string = '';
   @Local isSheetShow: boolean = false;
-
-  private scroller: Scroller = new Scroller();
-  private mdController: MarkdownController = new MarkdownController();
   @Param @Require pathStack: NavPathStack;
   @Local currentSessionId: number = -1;
+  @Local isVoiceMode: boolean = false; // 是否处于语音模式
+  @Local isRecording: boolean = false; // 是否正在录音
+  private scroller: Scroller = new Scroller();
+  private mdController: MarkdownController = new MarkdownController();
 
   aboutToAppear() {
+    this.requestMicPermission();
     this.mdController.setThreadRenderEnable(true).setTextColor('#333333').setTextSize(16);
     emitter.on({ eventId: 1002 }, () => {
       this.inputValue = "请帮我看看这个植物的叶子怎么了？得了什么病？应该怎么用药防治？";
       // 自动触发底部的拍照功能
       this.takePhoto();
     });
+  }
+  async requestMicPermission() {
+    let atManager = abilityAccessCtrl.createAtManager();
+    let context = getContext(this) as common.UIAbilityContext;
+    let authResult = await atManager.requestPermissionsFromUser(context, ['ohos.permission.MICROPHONE']);
+    if (authResult.authResults[0] !== 0) {
+      promptAction.showToast({ message: '请在设置中开启麦克风权限' });
+    }
+  }
+  // 🌟 处理按下说话
+  async handleTouchDown() {
+    this.isRecording = true;
+    await AudioService.startRecording(getContext(this));
+  }
+
+  // 🌟 处理松开发送
+  async handleTouchUp() {
+    this.isRecording = false;
+    promptAction.showToast({ message: '正在识别语音...' });
+
+    // 停止录音并获取 base64 和长度
+    let audioData = await AudioService.stopRecordingAndGetBase64();
+
+    if (audioData.length > 0) {
+      // 调百度接口
+      let text = await AiService.recognizeSpeech(audioData.base64Str, audioData.length);
+      if (text) {
+        // 去除最后的标点符号（百度有时候会带个句号）
+        this.inputValue = text.replace(/[。，！]$/, '');
+        // 🌟 自动触发发送消息逻辑
+        this.sendMessage();
+      } else {
+        promptAction.showToast({ message: '未听清，请重试' });
+      }
+    }
   }
 
   //调用系统相册选择
@@ -92,6 +132,7 @@ export struct Chat {
     // 构造用户消息
     let userText = this.inputValue.trim();
     let userMsg = new MessageModel('user', userText);
+    userMsg.id = util.generateRandomUUID(true);
     if (this.selectedImageBase64) {
       userMsg.imageUri = this.selectedImageUri;
       userMsg.imageBase64 = this.selectedImageBase64;
@@ -114,7 +155,8 @@ export struct Chat {
     this.scrollToBottom();
 
     //构建并存入 AI 的空消息容器
-    let aiMessage = new MessageModel('assistant', '');
+    let aiMessage = new MessageModel('assistant', '思考中...');
+    aiMessage.id = util.generateRandomUUID(true);
     aiMessage.timestamp = Date.now() + 10;
     this.messageList.push(aiMessage);
 
@@ -123,6 +165,9 @@ export struct Chat {
       this.messageList.slice(0, this.messageList.length - 1),
       this.isDeepThinking,
       (chunk: string) => {
+        if (aiMessage.content === '思考中...') {
+          aiMessage.content = '';
+        }
         aiMessage.content += chunk;
         this.scrollToBottom();
       },
@@ -325,18 +370,44 @@ export struct Chat {
           .onChange((isOn: boolean) => this.isDeepThinking = isOn)
       }.width('100%').padding({ left: 15, right: 15, top: 8, bottom: 2 }).backgroundColor(Color.White)
       Row({ space: 10 }) {
-        // $$ 进行双向绑定
-        TextArea({ text: $$this.inputValue, placeholder: '描述植物的问题...' })
-          .layoutWeight(1)
-          .constraintSize({ minHeight: 45, maxHeight: 120 })
-          .enterKeyType(EnterKeyType.Send)
-          .backgroundColor('#F5F5F5')
-          .borderRadius(20)
-          //删除onChange() 方法
-          .onSubmit(() => this.sendMessage())
+        // 切换语音/文字的按钮
+        Image(this.isVoiceMode ? $r('app.media.keyboard_icon') : $r('app.media.voice_icon'))
+          .width(30)
+          .height(30)
+          .onClick(() => {
+            this.isVoiceMode = !this.isVoiceMode;
+          })
 
-        // 动态按钮逻辑保持不变
-        if (this.inputValue.trim().length > 0 || this.selectedImageUri.length > 0) {
+        if (this.isVoiceMode) {
+          // 🌟 语音模式：按住说话大按钮
+          Button(this.isRecording ? '松开发送' : '按住 说话')
+            .layoutWeight(1)
+            .height(45)
+            .type(ButtonType.Normal)
+            .borderRadius(20)
+            .backgroundColor(this.isRecording ? '#E0E0E0' : '#F5F5F5')
+            .fontColor(this.isRecording ? '#00B96B' : '#333')
+            .fontWeight(this.isRecording ? FontWeight.Bold : FontWeight.Normal)
+            .onTouch((event: TouchEvent) => {
+              if (event.type === TouchType.Down) {
+                this.handleTouchDown();
+              } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
+                this.handleTouchUp();
+              }
+            })
+        } else {
+          // 🌟 文字模式：原来的输入框
+          TextArea({ text: $$this.inputValue, placeholder: '描述植物的问题...' })
+            .layoutWeight(1)
+            .constraintSize({ minHeight: 45, maxHeight: 120 })
+            .enterKeyType(EnterKeyType.Send)
+            .backgroundColor('#F5F5F5')
+            .borderRadius(20)
+            .onSubmit(() => this.sendMessage())
+        }
+
+        // 动态按钮逻辑保持不变 (加号和发送按钮)
+        if (!this.isVoiceMode && (this.inputValue.trim().length > 0 || this.selectedImageUri.length > 0)) {
           Button('发送')
             .height(45).backgroundColor(this.isLoading ? '#CCC' : '#00B96B')
             .enabled(!this.isLoading)
@@ -349,14 +420,10 @@ export struct Chat {
               this.isSheetShow = true;
             })
         }
-      }.padding(10).backgroundColor(Color.White).alignItems(VerticalAlign.Bottom)
+      }
+      .padding(10)
+      .backgroundColor(Color.White)
+      .alignItems(VerticalAlign.Bottom)
     }
-    .expandSafeArea([SafeAreaType.SYSTEM],[SafeAreaEdge.TOP,SafeAreaEdge.BOTTOM])
-    .width('100%').height('100%')
-    .bindSheet($$this.isSheetShow, this.AttachmentSheet(), {
-      height: 180,
-      dragBar: true,
-      backgroundColor: Color.White
-    })
   }
 }
