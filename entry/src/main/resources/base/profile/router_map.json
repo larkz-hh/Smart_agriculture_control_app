@@ -31,9 +31,24 @@
       "buildFunction": "PlantsBuilder"
     },
     {
+      "name": "AddDevice",
+      "pageSourceFile": "src/main/ets/pages/Device.ets",
+      "buildFunction": "AddDeviceBuilder"
+    },
+    {
       "name": "History",
       "pageSourceFile": "src/main/ets/pages/History.ets",
       "buildFunction": "HistoryBuilder"
+    },
+    {
+      "name": "RecordList",
+      "pageSourceFile": "src/main/ets/pages/RecordList.ets",
+      "buildFunction": "RecordListBuilder"
+    },
+    {
+      "name": "RecordDetail",
+      "pageSourceFile": "src/main/ets/pages/RecordDetail.ets",
+      "buildFunction": "RecordDetailBuilder"
     }
   ]
 }

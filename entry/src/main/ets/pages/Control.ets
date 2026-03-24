@@ -191,7 +191,7 @@ export struct Home {
           })
 
           this.QuickEntryItem('种植记录', $r('app.media.record_icon'), () => {
-            console.info('点击了种植记录');
+            this.pathStack?.pushPathByName('RecordList',null)
           })
 
           this.QuickEntryItem('添加设备', $r('app.media.device_add_icon'), () => {

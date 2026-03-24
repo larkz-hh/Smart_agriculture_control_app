@@ -1,6 +1,7 @@
 import relationalStore from '@ohos.data.relationalStore';
 import { common } from '@kit.AbilityKit';
 import { MessageModel } from '../model/MessageModel';
+import { PlantRecord, RecordGroup } from '../model/RecordModel';
 
 /**
  * 聊天记录与聊天消息关系型数据库
@@ -37,11 +38,24 @@ export class DatabaseManager {
       imageBase64 TEXT,
       timestamp INTEGER
     )`;
+    const createRecordGroupTable = `CREATE TABLE IF NOT EXISTS RecordGroup (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT, updateTime INTEGER)`;
+    // 种植记录表
+    const createPlantRecordTable = `CREATE TABLE IF NOT EXISTS PlantRecord (
+      id TEXT PRIMARY KEY,
+      groupId INTEGER,
+      imageUri TEXT,
+      description TEXT,
+      timestamp INTEGER
+      )`;
 
     try {
       DatabaseManager.rdbStore = await relationalStore.getRdbStore(context, config);
       await DatabaseManager.rdbStore.executeSql(createSessionTable);
       await DatabaseManager.rdbStore.executeSql(createMessageTable);
+      await DatabaseManager.rdbStore.executeSql(createRecordGroupTable);
+      await DatabaseManager.rdbStore.executeSql(createPlantRecordTable)
       console.info('数据库初始化成功');
     } catch (e) {
       console.error('数据库初始化失败:', JSON.stringify(e));
@@ -162,6 +176,7 @@ export class DatabaseManager {
   static async deleteSession(sessionId: number) {
     if (!DatabaseManager.rdbStore) return
     try {
+      //删消息
       let msgPredicates = new relationalStore.RdbPredicates('Message');
       msgPredicates.equalTo('sessionId', sessionId);
       await DatabaseManager.rdbStore.delete(msgPredicates);
@@ -173,7 +188,90 @@ export class DatabaseManager {
     }catch (e){
       console.error('删除会话与消息失败:', JSON.stringify(e));
     }
-    //删消息
+
 
   }
+  static async insertRecordGroup(name: string): Promise<void> {
+    if (!DatabaseManager.rdbStore) return;
+    let bucket: relationalStore.ValuesBucket = { name: name, updateTime: Date.now() };
+    await DatabaseManager.rdbStore.insert('RecordGroup', bucket);
+  }
+  static async getRecordGroups(): Promise<RecordGroup[]> {
+    if (!DatabaseManager.rdbStore) return [];
+    let predicates = new relationalStore.RdbPredicates('RecordGroup');
+    predicates.orderByDesc('updateTime');
+    let rs = await DatabaseManager.rdbStore.query(predicates);
+    let list: RecordGroup[] = [];
+    while (rs.goToNextRow()) {
+      let group = new RecordGroup();
+      group.id = rs.getLong(rs.getColumnIndex('id'));
+      group.name = rs.getString(rs.getColumnIndex('name'));
+      group.updateTime = rs.getLong(rs.getColumnIndex('updateTime'));
+      list.push(group);
+    }
+    rs.close();
+    return list;
+  }
+  static async insertPlantRecord(record: PlantRecord): Promise<void> {
+    if (!DatabaseManager.rdbStore) return;
+    let bucket: relationalStore.ValuesBucket = {
+      id: record.id, groupId: record.groupId, imageUri: record.imageUri, description: record.desc, timestamp: record.timestamp
+    };
+    await DatabaseManager.rdbStore.insert('PlantRecord', bucket);
+
+    // 更新组时间
+    let groupBucket: relationalStore.ValuesBucket = { updateTime: record.timestamp };
+    let groupPred = new relationalStore.RdbPredicates('RecordGroup');
+    groupPred.equalTo('id', record.groupId);
+    await DatabaseManager.rdbStore.update(groupBucket, groupPred);
+  }
+
+  // 获取分组下的所有记录 (时间倒序)
+  static async getRecordsByGroupId(groupId: number): Promise<PlantRecord[]> {
+    if (!DatabaseManager.rdbStore) return [];
+    let predicates = new relationalStore.RdbPredicates('PlantRecord');
+    predicates.equalTo('groupId', groupId);
+    predicates.orderByDesc('timestamp');
+    let rs = await DatabaseManager.rdbStore.query(predicates);
+    let list: PlantRecord[] = [];
+    while (rs.goToNextRow()) {
+      let record = new PlantRecord();
+      record.id = rs.getString(rs.getColumnIndex('id'));
+      record.groupId = rs.getLong(rs.getColumnIndex('groupId'));
+      record.imageUri = rs.getString(rs.getColumnIndex('imageUri'));
+      record.desc = rs.getString(rs.getColumnIndex('description'));
+      record.timestamp = rs.getLong(rs.getColumnIndex('timestamp'));
+      list.push(record);
+    }
+    rs.close();
+    return list;
+  }
+
+  // 5. 删除单条记录
+  static async deletePlantRecord(recordId: string) {
+    if (!DatabaseManager.rdbStore) return;
+    let predicates = new relationalStore.RdbPredicates('PlantRecord');
+    predicates.equalTo('id', recordId);
+    await DatabaseManager.rdbStore.delete(predicates);
+  }
+  static async deleteRecordGroup(groupId: number) {
+    if (!DatabaseManager.rdbStore) return;
+    try {
+      // 删除该分组下所有的种植记录
+      let recordPredicates = new relationalStore.RdbPredicates('PlantRecord');
+      recordPredicates.equalTo('groupId', groupId);
+      await DatabaseManager.rdbStore.delete(recordPredicates);
+      //删除分组本身
+      let groupPredicates = new relationalStore.RdbPredicates('RecordGroup');
+      groupPredicates.equalTo('id', groupId);
+      await DatabaseManager.rdbStore.delete(groupPredicates);
+
+    } catch (e) {
+      console.error('删除分组及其记录失败:', JSON.stringify(e));
+    }
+  }
+
+
+
+
 }

@@ -30,7 +30,7 @@ struct Layout {
   }
   tabData: TabClass[] = [
     {
-      text: '控制',
+      text: '首页',
       icon: $r('app.media.control_icon'),
       activeIcon: $r('app.media.control_active_icon')
     },

@@ -66,9 +66,9 @@ export struct Chat {
       // 调百度接口
       let text = await AiService.recognizeSpeech(audioData.base64Str, audioData.length);
       if (text) {
-        // 去除最后的标点符号（百度有时候会带个句号）
+        // 去除最后的标点符号
         this.inputValue = text.replace(/[。，！]$/, '');
-        // 🌟 自动触发发送消息逻辑
+        // 自动触发发送消息逻辑
         this.sendMessage();
       } else {
         promptAction.showToast({ message: '未听清，请重试' });
@@ -425,5 +425,13 @@ export struct Chat {
       .backgroundColor(Color.White)
       .alignItems(VerticalAlign.Bottom)
     }
+    .bindSheet($$this.isSheetShow, this.AttachmentSheet(), {
+      height: SheetSize.FIT_CONTENT, // 高度自适应内容
+      dragBar: false,                // 不需要顶部的拖拽小横条
+      backgroundColor: Color.Transparent, // 背景设为透明（因为你在Builder里已经写了白底和圆角）
+      onDisappear: () => {
+        this.isSheetShow = false;    // 保证向下滑动关闭时，状态同步变回false
+      }
+    })
   }
 }
