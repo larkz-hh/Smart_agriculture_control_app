@@ -1,8 +1,8 @@
-import { NewsItem, NewsService } from '../services/newsService/NewsService';
+import { NewsItem, NewsService } from '../services/news/NewsService';
 import emitter from '@ohos.events.emitter';
 import { abilityAccessCtrl, common } from '@kit.AbilityKit';
 import { geoLocationManager } from '@kit.LocationKit';
-import { AiService, WeatherInfo } from '../services/aiService/AIService';
+import { AiService, WeatherInfo } from '../services/ai/AIService';
 
 @Component
 export struct Home {

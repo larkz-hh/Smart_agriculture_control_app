@@ -5,12 +5,12 @@ import { cameraPicker, camera } from '@kit.CameraKit';
 import { fileIo } from '@kit.CoreFileKit';
 import util from '@ohos.util';
 import { common } from '@kit.AbilityKit';
-import { AiService } from '../services/aiService/AIService';
+import { AiService } from '../services/ai/AIService';
 import { DatabaseManager } from '../data/DatabaseManager';
 import emitter from '@ohos.events.emitter';
 import { abilityAccessCtrl } from '@kit.AbilityKit';
 import { promptAction } from '@kit.ArkUI';
-import { AudioService } from '../services/aiService/AudioService';
+import { AudioService } from '../services/ai/AudioService';
 
 @ComponentV2
 export struct Chat {
