@@ -22,7 +22,21 @@ export interface RegisterRsp {
   ret?: RetMsg;
 }
 
+export interface AccessTokenObj {
+  token: string;
+  validPeriod: number;
+}
 
+export interface RefreshTokenObj {
+  token: string;
+  validPeriod: number;
+}
+
+export interface SignInRsp {
+  ret?: RetMsg;
+  accessToken?: AccessTokenObj;
+  refreshToken?: RefreshTokenObj;
+}
 
 const HOST = 'https://connect-drcn.dbankcloud.cn';
 
@@ -162,4 +176,76 @@ export class AuthService {
     }
   }
 
+  /**
+   * 账号密码登录
+   */
+  static async signInWithPassword(email: string, password: string): Promise<SignInRsp> {
+    let token = await AuthService.getAccessToken();
+    let httpRequest = http.createHttp();
+
+    try {
+      let response = await httpRequest.request(
+        `${HOST}/agc/apigw/oauth2/third/v1/user-signin?productId=${AuthConfig.PRODUCT_ID}`,
+        {
+          method: http.RequestMethod.POST,
+          header: {
+            'Content-Type': 'application/json;charset=utf-8',
+            'client_id': AuthConfig.CLIENT_ID,
+            'Authorization': `Bearer ${token}`
+          },
+          extraData: {
+            provider: 12, // 邮箱
+            token: email,
+            password: password, // 直接使用密码登录
+            autoCreateUser: 0,
+            useJwt: 1
+          },
+          expectDataType: http.HttpDataType.STRING
+        }
+      );
+
+      console.info('【密码登录返回】:', response.result);
+      let resData = JSON.parse(response.result as string) as SignInRsp;
+      return resData;
+    } catch (err) {
+      throw new Error('登录请求异常');
+    } finally {
+      httpRequest.destroy();
+    }
+  }
+  /**
+   * 验证码登录
+   */
+  static async signInByVerifyCode(email: string, verifyCode: string): Promise<SignInRsp> {
+    let token = await AuthService.getAccessToken();
+    let httpRequest = http.createHttp();
+
+    try {
+      let response = await httpRequest.request(
+        `${HOST}/agc/apigw/oauth2/third/v1/user-signin?productId=${AuthConfig.PRODUCT_ID}`,
+        {
+          method: http.RequestMethod.POST,
+          header: {
+            'Content-Type': 'application/json;charset=utf-8',
+            'client_id': AuthConfig.CLIENT_ID,
+            'Authorization': `Bearer ${token}`
+          },
+          extraData: {
+            provider: 12, // 12代表邮箱
+            token: email,
+            extraData: JSON.stringify({ "verifyCode": verifyCode }),
+            autoCreateUser: 0,
+            useJwt: 1
+          }
+        }
+      );
+
+      let resData = JSON.parse(response.result as string) as SignInRsp;
+      return resData;
+    } catch (err) {
+      throw new Error('登录请求异常');
+    } finally {
+      httpRequest.destroy();
+    }
+  }
 }
