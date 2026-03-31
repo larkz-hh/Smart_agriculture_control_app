@@ -1,6 +1,6 @@
 import { DatabaseManager } from "../data/DatabaseManager";
 import { Chat } from "./Chat";
-import { Home } from "./Control";
+import { Home } from "./Home";
 import { Mine } from "./Mine";
 import { Monitor } from "./Monitor";
 import emitter from '@ohos.events.emitter';

@@ -4,6 +4,8 @@ import { AppConfig } from '../../config/AppConfig';
 import { ApiMessage, StreamResponseModel,NonStreamResponseModel, VisionContentItem,
   VisionImageUrl } from '../../model/AiApiModel';
 import { MessageModel } from '../../model/MessageModel';
+import { WeatherInfo } from '../../model/WeatherModel';
+
 interface BaiduSpeechRequest {
   format: string;
   rate: number;
@@ -14,11 +16,11 @@ interface BaiduSpeechRequest {
   speech: string;
 }
 
-// 🌟 修复报错：定义百度返回体结构
+
 interface BaiduSpeechResponse {
   err_no: number;
   err_msg: string;
-  result?: string[]; // 只有成功时才有这个字段，所以加 ? 号
+  result?: string[]; // 只有成功时才有这个字段
   sn?: string;
 }
 export interface PlantInfo {
@@ -29,17 +31,7 @@ export interface PlantInfo {
   airMoisture: string;
   carbonDioxide: string;
 }
-export interface WeatherInfo {
-  location: string;
-  condition: string;
-  currentTemp: number;
-  highTemp: number;
-  lowTemp: number;
-  precipitation: string;
-  humidity: string;
-  wind: string;
-  light: string;
-}
+
 interface Thinking{
   "type": string ;
 }
@@ -108,7 +100,7 @@ export class AiService {
     let httpRequest = http.createHttp();
     let buffer = '';
 
-    // 🌟 核心修复：加一把锁，保证 onFinish 或 onError 只会执行一次！
+
     let isFinished = false;
 
     httpRequest.on('dataReceive', (data: ArrayBuffer) => {
@@ -134,7 +126,7 @@ export class AiService {
           let jsonStr = line.substring(6).trim();
 
           if (jsonStr === '[DONE]') {
-            // 🌟 如果没执行过，才执行完成回调
+
             if (!isFinished) {
               isFinished = true;
               onFinish();
@@ -160,7 +152,7 @@ export class AiService {
     });
 
     httpRequest.on('dataEnd', () => {
-      // 🌟 防止 dataEnd 再次触发 onFinish 导致双重入库
+
       if (!isFinished) {
         isFinished = true;
         onFinish();
@@ -216,7 +208,7 @@ export class AiService {
         method: http.RequestMethod.POST,
         header: {
           'Content-Type': 'application/json',
-          // 🌟 按照文档，API Key方式需要加 Bearer 前缀
+
           'Authorization': `Bearer ${AiService.BAIDU_API_KEY}`
         },
         extraData: JSON.stringify(requestBody),

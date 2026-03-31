@@ -1,8 +1,8 @@
-import { NewsItem, NewsService } from '../services/news/NewsService';
+import { NewsItem } from '../services/news/NewsService';
 import emitter from '@ohos.events.emitter';
-import { abilityAccessCtrl, common } from '@kit.AbilityKit';
-import { geoLocationManager } from '@kit.LocationKit';
-import { AiService, WeatherInfo } from '../services/ai/AIService';
+import { common } from '@kit.AbilityKit';
+import { HomeViewModel } from '../viewmodel/HomeViewModel';
+import { WeatherInfo } from '../model/WeatherModel';
 
 @Component
 export struct Home {
@@ -10,73 +10,36 @@ export struct Home {
   pathStack?: NavPathStack;
   @StorageLink('homeNewsCache') newsList: NewsItem[] = [];
   @State isLoading: boolean = false;
-  //@State newsList: NewsItem[] = [];
+
   @StorageLink('homeWeatherCache') weatherData: WeatherInfo | undefined | null = undefined;
   @State isWeatherLoading: boolean = false;
-  //@State isLoading: boolean = true;
-  //@State weatherData: WeatherInfo | null = null;
-  //@State isWeatherLoading: boolean = true;
 
   aboutToAppear() {
-    this.loadNews();
-    this.initWeather();
+    this.loadNewsData();
+    this.initWeatherData();
   }
-  //加载新闻
-  async loadNews() {
+
+  // 加载新闻
+  async loadNewsData() {
     if (this.newsList.length === 0) {
       this.isLoading = true;
     }
-    let latestNews = await NewsService.getAgricultureNews();
+    let latestNews = await HomeViewModel.loadNews();
     if (latestNews && latestNews.length > 0) {
       this.newsList = latestNews;
     }
     this.isLoading = false;
   }
-  //初始化天气
-  async initWeather() {
+
+  // 初始化天气
+  async initWeatherData() {
     //静默刷新
     if (!this.weatherData) {
       this.isWeatherLoading = true;
     }
     try {
       let context = getContext(this) as common.UIAbilityContext;
-      let atManager = abilityAccessCtrl.createAtManager();
-      //向用户请求定位权限
-      let authResult = await atManager.requestPermissionsFromUser(context, [
-        'ohos.permission.APPROXIMATELY_LOCATION',
-        'ohos.permission.LOCATION'
-      ]);
-      let finalLocationName = '杭州市(默认)';
-      //同意了权限
-      if (authResult.authResults[0] === 0) {
-        //获取经纬度
-        let location = await geoLocationManager.getCurrentLocation();
-        try {
-          //逆地理编码
-          let reverseRequest: geoLocationManager.ReverseGeoCodeRequest = {
-            latitude: location.latitude,
-            longitude: location.longitude,
-            maxItems: 1
-          };
-          let placeList = await geoLocationManager.getAddressesFromLocation(reverseRequest);
-          if (placeList && placeList.length > 0) {
-            let place = placeList[0];
-            let prov = place.administrativeArea ? place.administrativeArea : '';
-            let city = place.locality ? place.locality : '';
-            let dist = place.subLocality ? place.subLocality : '';
-            finalLocationName = `${prov}${city}${dist}`;
-            if (!finalLocationName) {
-              finalLocationName = place.placeName ? place.placeName : '未知位置';
-            }
-          }
-        } catch (e) {
-          console.error('逆地理编码失败，使用经纬度代替');
-          finalLocationName = `经度${location.longitude.toFixed(1)},纬度${location.latitude.toFixed(1)}`;
-        }
-      }
-
-      //获取天气
-      let aiWeather = await AiService.getWeatherData(finalLocationName);
+      let aiWeather = await HomeViewModel.getLocalWeather(context);
       if (aiWeather) {
         this.weatherData = aiWeather;
       }
@@ -96,7 +59,7 @@ export struct Home {
     .layoutWeight(1)
   }
 
-  //天气预报区
+  // 天气预报区
   @Builder WeatherCard() {
     Column() {
       if (this.isWeatherLoading) {
@@ -145,7 +108,7 @@ export struct Home {
     .margin({ bottom: 15 })
   }
 
-  //金刚区
+  // 金刚区
   @Builder QuickEntryItem(title: string, iconUrl: ResourceStr, onClickAction: () => void) {
     Column({ space: 8 }) {
       Image(iconUrl)
@@ -181,8 +144,10 @@ export struct Home {
         }
         .width('100%')
         .padding({ left: 15, right: 15, top: 15, bottom: 15 })
+
         this.WeatherCard()
-        //快捷导航(金刚区)
+
+        // 快捷导航(金刚区)
         Row() {
           this.QuickEntryItem('植物百科', $r('app.media.plants_icon'), () => {
             if (this.pathStack) {
@@ -197,6 +162,7 @@ export struct Home {
           this.QuickEntryItem('添加设备', $r('app.media.device_add_icon'), () => {
             console.info('点击了添加设备');
           })
+
           this.QuickEntryItem('拍照识病', $r('app.media.diagnosis_icon'), () => {
             // 发送事件1001,通知Layout切换到Chat页面
             emitter.emit({ eventId: 1001 });
