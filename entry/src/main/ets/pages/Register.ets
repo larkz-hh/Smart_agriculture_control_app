@@ -1,5 +1,5 @@
 import { promptAction } from '@kit.ArkUI';
-import { AuthService } from '../services/auth/AuthService';
+import { AuthViewModel } from '../viewmodel/AuthViewModel';
 
 @Builder
 export function RegisterBuilder(name: string, param: Object) {
@@ -26,97 +26,38 @@ export struct Register {
     }
   }
 
-  // 密码格式校验
-  validatePassword(pwd: string): string {
-    if (pwd.length < 8) return '密码长度至少为8位';
-    if (pwd === this.email) return '密码不可与邮箱地址相同';
-    let typeCount = 0;
-    if (/[A-Z]/.test(pwd)) typeCount++; //大写
-    if (/[a-z]/.test(pwd)) typeCount++; //小写
-    if (/[0-9]/.test(pwd)) typeCount++; //数字
-    if (/[^A-Za-z0-9]/.test(pwd)) typeCount++; // 符号
-    if (typeCount < 2) return '密码需至少包含大写、小写、数字、符号中的2种';
-    return '';
-  }
-
   //获取验证码点击处理
   async handleGetVerifyCode() {
-    //检查邮箱
-    if (!this.email || !this.email.includes('@')) {
-      promptAction.showToast({ message: '请填写正确的邮箱地址' });
+    let errorMsg = await AuthViewModel.getVerifyCode(this.email, this.password, this.confirmPassword);
+
+    if (errorMsg) {
+      promptAction.showToast({ message: errorMsg });
       return;
     }
 
-    //必须先填写密码才能获取验证码
-    if (!this.password || !this.confirmPassword) {
-      promptAction.showToast({ message: '请先填写并确认密码' });
-      return;
-    }
-    // 两次密码是否一致
-    if (this.password !== this.confirmPassword) {
-      promptAction.showToast({ message: '两次输入密码不一致，请修改后再获取验证码' });
-      return;
-    }
-    //密码格式是否合规
-    let pwdError = this.validatePassword(this.password);
-    if (pwdError) {
-      promptAction.showToast({ message: pwdError });
-      return;
-    }
-    //通过前置检查，开始倒计时和发送请求
+    // 通过检查并发送成功，开启计时器，倒计时30s
+    promptAction.showToast({ message: '验证码已发送，请查收邮件' });
     this.isCountingDown = true;
     this.countdown = 30;
-    try {
-      await AuthService.sendVerifyCode(this.email);
-      promptAction.showToast({ message: '验证码已发送，请查收邮件' });
-      this.timerId = setInterval(() => {
-        this.countdown -= 1;
-        if (this.countdown <= 0) {
-          clearInterval(this.timerId);
-          this.isCountingDown = false;
-        }
-      }, 1000);
-
-    } catch (error) {
-      this.isCountingDown = false;
-      let msg = error instanceof Error ? error.message : '发送失败';
-      promptAction.showToast({ message: msg });
-    }
+    this.timerId = setInterval(() => {
+      this.countdown -= 1;
+      if (this.countdown <= 0) {
+        clearInterval(this.timerId);
+        this.isCountingDown = false;
+      }
+    }, 1000);
   }
 
   //注册点击处理
   async handleRegister() {
-    if (!this.email || !this.password || !this.confirmPassword || !this.verifyCode) {
-      promptAction.showToast({ message: '请完整填写所有信息' });
-      return;
-    }
-    if (this.password !== this.confirmPassword) {
-      promptAction.showToast({ message: '两次密码输入不一致' });
-      return;
-    }
-    let pwdError = this.validatePassword(this.password);
-    if (pwdError) {
-      promptAction.showToast({ message: pwdError });
-      return;
-    }
+    let result = await AuthViewModel.register(this.email, this.password, this.confirmPassword, this.verifyCode);
 
-    try {
-      let res = await AuthService.registerUser(this.email, this.verifyCode, this.password);
+    promptAction.showToast({ message: result.message });
 
-      if (res.ret && res.ret.code === 0) {
-        promptAction.showToast({ message: '注册成功，请登录' });
-        //保存账号
-        AppStorage.setOrCreate('local_username', this.email);
-        this.pathStack.pop();
-      } else if (res.ret && res.ret.code === 203818130) {
-        promptAction.showToast({ message: '该邮箱已被注册，请直接返回登录' });
-      } else {
-        let errorMsg = res.ret?.msg || '注册失败，请检查验证码是否正确';
-        promptAction.showToast({ message: errorMsg });
-      }
-    } catch (error) {
-      let msg = error instanceof Error ? error.message : '网络异常，请重试';
-      promptAction.showToast({ message: msg });
+    if (result.success) {
+      // 保存账号
+      AppStorage.setOrCreate('local_username', this.email);
+      this.pathStack.pop();
     }
   }
 

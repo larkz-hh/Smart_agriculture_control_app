@@ -1,5 +1,5 @@
 import { PromptAction, promptAction } from '@kit.ArkUI';
-import { AuthService } from '../services/auth/AuthService';
+import { AuthViewModel } from '../viewmodel/AuthViewModel';
 
 PersistentStorage.persistProp('local_username', '');
 PersistentStorage.persistProp('isLoggedIn', false);
@@ -35,61 +35,45 @@ export struct Login {
     }
   }
 
+  // 获取登录验证码
   async handleGetVerifyCode() {
-    if (!this.username || !this.username.includes('@')) {
-      this.promptAction.showToast({ message: '请填写正确的邮箱地址' });
+    let errorMsg = await AuthViewModel.getLoginVerifyCode(this.username);
+
+    if (errorMsg) {
+      this.promptAction.showToast({ message: errorMsg });
       return;
     }
 
     this.isCountingDown = true;
     this.countdown = 30;
-    try {
-      await AuthService.sendVerifyCode(this.username);
-      this.promptAction.showToast({ message: '验证码已发送，请查收邮件' });
-      this.timerId = setInterval(() => {
-        this.countdown -= 1;
-        if (this.countdown <= 0) {
-          clearInterval(this.timerId);
-          this.isCountingDown = false;
-        }
-      }, 1000);
-    } catch (error) {
-      this.isCountingDown = false;
-      let msg = error instanceof Error ? error.message : '发送失败';
-      this.promptAction.showToast({ message: msg });
-    }
+    this.promptAction.showToast({ message: '验证码已发送，请查收邮件' });
+
+    this.timerId = setInterval(() => {
+      this.countdown -= 1;
+      if (this.countdown <= 0) {
+        clearInterval(this.timerId);
+        this.isCountingDown = false;
+      }
+    }, 1000);
   }
 
+  // 登录点击处理
   async handleLogin() {
-    if (!this.username || !this.verifyCode) {
-      this.promptAction.showToast({ message: '请完整填写邮箱和验证码' });
-      return;
-    }
+    let result = await AuthViewModel.login(this.username, this.verifyCode);
 
-    try {
-      let res = await AuthService.signInByVerifyCode(this.username, this.verifyCode);
+    this.promptAction.showToast({ message: result.message });
 
-      if (res.ret && res.ret.code === 0) {
-        this.promptAction.showToast({ message: '登录成功' });
+    if (result.success) {
+      // 登录成功，处理状态缓存并跳转
+      AppStorage.setOrCreate('isLoggedIn', true);
+      AppStorage.setOrCreate('local_username', this.username);
 
-        AppStorage.setOrCreate('isLoggedIn', true);
-        AppStorage.setOrCreate('local_username', this.username);
-        if (res.accessToken?.token) {
-          AppStorage.setOrCreate('user_access_token', res.accessToken.token);
-        }
-
-        this.pathStack.clear();
-        this.pathStack.pushPathByName('Layout', null);
-
-      } else if (res.ret && res.ret.code === 203818032) {
-        this.promptAction.showToast({ message: '该账号尚未注册，请先注册' });
-      } else {
-        let errorMsg = res.ret?.msg || '登录失败，请检查验证码';
-        this.promptAction.showToast({ message: errorMsg });
+      if (result.token) {
+        AppStorage.setOrCreate('user_access_token', result.token);
       }
 
-    } catch (error) {
-      this.promptAction.showToast({ message: '网络异常，请重试' });
+      this.pathStack.clear();
+      this.pathStack.pushPathByName('Layout', null);
     }
   }
 
