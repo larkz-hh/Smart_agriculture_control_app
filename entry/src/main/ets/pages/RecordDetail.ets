@@ -194,7 +194,7 @@ export struct RecordDetail {
         .onClick(() => {
           // 打开弹窗前，确保groupId传进去了
           this.dialogController = new CustomDialogController({
-            // 🌟 修复报错：加上大括号 {}，并明确声明返回类型为 void
+
             builder: CreateRecordDialog({
               groupId: this.groupId,
               onSaved: (): void => { this.loadRecords(); }

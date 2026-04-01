@@ -110,19 +110,31 @@ export struct Chat {
 
   // 图片转为Base64
   async processImageUri(uri: string) {
-    this.selectedImageUri = uri;
     try {
-      let file = fileIo.openSync(uri, fileIo.OpenMode.READ_ONLY);
-      let stat = fileIo.statSync(file.fd);
+      let context = getContext(this) as common.UIAbilityContext;
+      // 1. 生成应用沙箱内部路径
+      let ext = uri.split('.').pop() || 'jpg';
+      let localPath = `${context.filesDir}/${Date.now()}.${ext}`;
+
+      // 将相册临时图片拷贝到App沙箱中
+      let srcFile = fileIo.openSync(uri, fileIo.OpenMode.READ_ONLY);
+      fileIo.copyFileSync(srcFile.fd, localPath);
+
+      // 界面渲染沙箱里永久有效的路径
+      this.selectedImageUri = `file://${localPath}`;
+
+      // 源文件读取为 Buffer 并转为 Base64
+      let stat = fileIo.statSync(srcFile.fd);
       let buffer = new ArrayBuffer(stat.size);
-      fileIo.readSync(file.fd, buffer);
-      fileIo.closeSync(file.fd);
+      fileIo.readSync(srcFile.fd, buffer);
+      fileIo.closeSync(srcFile.fd);
 
       let base64Helper = new util.Base64Helper();
       let base64Str = base64Helper.encodeToStringSync(new Uint8Array(buffer));
       this.selectedImageBase64 = 'data:image/jpeg;base64,' + base64Str;
+
     } catch (e) {
-      console.error('图片转换Base64失败:', e);
+      console.error('图片拷贝/转换失败:', JSON.stringify(e));
     }
   }
 
@@ -379,7 +391,7 @@ export struct Chat {
           })
 
         if (this.isVoiceMode) {
-          // 🌟 语音模式：按住说话大按钮
+          // 语音模式：按住说话按钮
           Button(this.isRecording ? '松开发送' : '按住 说话')
             .layoutWeight(1)
             .height(45)
@@ -396,7 +408,6 @@ export struct Chat {
               }
             })
         } else {
-          // 🌟 文字模式：原来的输入框
           TextArea({ text: $$this.inputValue, placeholder: '描述植物的问题...' })
             .layoutWeight(1)
             .constraintSize({ minHeight: 45, maxHeight: 120 })
@@ -426,11 +437,11 @@ export struct Chat {
       .alignItems(VerticalAlign.Bottom)
     }
     .bindSheet($$this.isSheetShow, this.AttachmentSheet(), {
-      height: SheetSize.FIT_CONTENT, // 高度自适应内容
-      dragBar: false,                // 不需要顶部的拖拽小横条
-      backgroundColor: Color.Transparent, // 背景设为透明（因为你在Builder里已经写了白底和圆角）
+      height: SheetSize.FIT_CONTENT,
+      dragBar: false,
+      backgroundColor: Color.Transparent,
       onDisappear: () => {
-        this.isSheetShow = false;    // 保证向下滑动关闭时，状态同步变回false
+        this.isSheetShow = false;
       }
     })
   }

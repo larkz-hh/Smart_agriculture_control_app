@@ -3,10 +3,6 @@ import { common } from '@kit.AbilityKit';
 import { MessageModel } from '../model/MessageModel';
 import { PlantRecord, RecordGroup } from '../model/RecordModel';
 
-/**
- * 聊天记录与聊天消息关系型数据库
- */
-// 会话列表
 export interface SessionItem {
   id: number;
   title: string;
@@ -16,7 +12,6 @@ export interface SessionItem {
 export class DatabaseManager {
   private static rdbStore: relationalStore.RdbStore | null = null;
 
-  // 初始化数据库和建表
   static async init(context: common.UIAbilityContext | common.Context) {
     if (DatabaseManager.rdbStore) return;
     const config: relationalStore.StoreConfig = {
@@ -41,7 +36,7 @@ export class DatabaseManager {
     const createRecordGroupTable = `CREATE TABLE IF NOT EXISTS RecordGroup (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT, updateTime INTEGER)`;
-    // 种植记录表
+
     const createPlantRecordTable = `CREATE TABLE IF NOT EXISTS PlantRecord (
       id TEXT PRIMARY KEY,
       groupId INTEGER,
@@ -62,7 +57,6 @@ export class DatabaseManager {
     }
   }
 
-  // 新建会话
   static async insertSession(title: string, timestamp: number): Promise<number> {
     if (!DatabaseManager.rdbStore) return -1;
     let bucket: relationalStore.ValuesBucket = { title: title, timestamp: timestamp };
@@ -74,7 +68,6 @@ export class DatabaseManager {
     }
   }
 
-  //更新会话标题
   static async updateSessionTitle(sessionId: number, newTitle: string) {
     if (!DatabaseManager.rdbStore) return;
     let bucket: relationalStore.ValuesBucket = { title: newTitle };
@@ -87,7 +80,6 @@ export class DatabaseManager {
     }
   }
 
-  //保存消息
   static async insertMessage(msg: MessageModel, sessionId: number) {
     if (!DatabaseManager.rdbStore) return;
     try {
@@ -97,7 +89,7 @@ export class DatabaseManager {
         role: msg.role,
         content: msg.content,
         imageUri: msg.imageUri || '',
-        imageBase64: msg.imageBase64 || '',
+        imageBase64: '',
         timestamp: msg.timestamp
       };
       await DatabaseManager.rdbStore.insert('Message', bucket);
@@ -105,19 +97,17 @@ export class DatabaseManager {
       let sessionBucket: relationalStore.ValuesBucket = { timestamp: msg.timestamp };
       let predicates = new relationalStore.RdbPredicates('Session');
       predicates.equalTo('id', sessionId);
-      //更新会话时间
       await DatabaseManager.rdbStore.update(sessionBucket, predicates);
     } catch (e) {
       console.error('插入消息到数据库失败:', JSON.stringify(e));
     }
   }
 
-  //获取历史会话列表(按时间倒序)
   static async getSessionList(): Promise<SessionItem[]> {
     if (!DatabaseManager.rdbStore) return [];
     try {
       let predicates = new relationalStore.RdbPredicates('Session');
-      predicates.orderByDesc('timestamp'); //最新会话的在最上面
+      predicates.orderByDesc('timestamp');
 
       let resultSet = await DatabaseManager.rdbStore.query(predicates, ['id', 'title', 'timestamp']);
       let list: SessionItem[] = [];
@@ -130,21 +120,18 @@ export class DatabaseManager {
       }
       resultSet.close();
       return list;
-
     }catch (e) {
       console.error('获取历史会话失败:', JSON.stringify(e));
       return [];
     }
-
   }
 
-  //获取某个会话的所有聊天记录
   static async getMessagesBySession(sessionId: number): Promise<MessageModel[]> {
     try {
       if (!DatabaseManager.rdbStore) return [];
       let predicates = new relationalStore.RdbPredicates('Message');
       predicates.equalTo('sessionId', sessionId);
-      predicates.orderByAsc('timestamp'); // 聊天记录按时间正序
+      predicates.orderByAsc('timestamp');
 
       let resultSet = await DatabaseManager.rdbStore.query(predicates);
       let list: MessageModel[] = [];
@@ -158,6 +145,7 @@ export class DatabaseManager {
 
         let imgUri = resultSet.getString(resultSet.getColumnIndex('imageUri'));
         let imgBase64 = resultSet.getString(resultSet.getColumnIndex('imageBase64'));
+
         if (imgUri) msg.imageUri = imgUri;
         if (imgBase64) msg.imageBase64 = imgBase64;
 
@@ -169,33 +157,29 @@ export class DatabaseManager {
       console.error('获取聊天失败:', JSON.stringify(e));
       return [];
     }
-
   }
 
-  // 删除会话及底下的所有消息
   static async deleteSession(sessionId: number) {
     if (!DatabaseManager.rdbStore) return
     try {
-      //删消息
       let msgPredicates = new relationalStore.RdbPredicates('Message');
       msgPredicates.equalTo('sessionId', sessionId);
       await DatabaseManager.rdbStore.delete(msgPredicates);
 
-      //删会话
       let sessionPredicates = new relationalStore.RdbPredicates('Session');
       sessionPredicates.equalTo('id', sessionId);
       await DatabaseManager.rdbStore.delete(sessionPredicates);
     }catch (e){
       console.error('删除会话与消息失败:', JSON.stringify(e));
     }
-
-
   }
+
   static async insertRecordGroup(name: string): Promise<void> {
     if (!DatabaseManager.rdbStore) return;
     let bucket: relationalStore.ValuesBucket = { name: name, updateTime: Date.now() };
     await DatabaseManager.rdbStore.insert('RecordGroup', bucket);
   }
+
   static async getRecordGroups(): Promise<RecordGroup[]> {
     if (!DatabaseManager.rdbStore) return [];
     let predicates = new relationalStore.RdbPredicates('RecordGroup');
@@ -212,6 +196,7 @@ export class DatabaseManager {
     rs.close();
     return list;
   }
+
   static async insertPlantRecord(record: PlantRecord): Promise<void> {
     if (!DatabaseManager.rdbStore) return;
     let bucket: relationalStore.ValuesBucket = {
@@ -219,14 +204,12 @@ export class DatabaseManager {
     };
     await DatabaseManager.rdbStore.insert('PlantRecord', bucket);
 
-    // 更新组时间
     let groupBucket: relationalStore.ValuesBucket = { updateTime: record.timestamp };
     let groupPred = new relationalStore.RdbPredicates('RecordGroup');
     groupPred.equalTo('id', record.groupId);
     await DatabaseManager.rdbStore.update(groupBucket, groupPred);
   }
 
-  // 获取分组下的所有记录 (时间倒序)
   static async getRecordsByGroupId(groupId: number): Promise<PlantRecord[]> {
     if (!DatabaseManager.rdbStore) return [];
     let predicates = new relationalStore.RdbPredicates('PlantRecord');
@@ -247,31 +230,25 @@ export class DatabaseManager {
     return list;
   }
 
-  // 5. 删除单条记录
   static async deletePlantRecord(recordId: string) {
     if (!DatabaseManager.rdbStore) return;
     let predicates = new relationalStore.RdbPredicates('PlantRecord');
     predicates.equalTo('id', recordId);
     await DatabaseManager.rdbStore.delete(predicates);
   }
+
   static async deleteRecordGroup(groupId: number) {
     if (!DatabaseManager.rdbStore) return;
     try {
-      // 删除该分组下所有的种植记录
       let recordPredicates = new relationalStore.RdbPredicates('PlantRecord');
       recordPredicates.equalTo('groupId', groupId);
       await DatabaseManager.rdbStore.delete(recordPredicates);
-      //删除分组本身
+
       let groupPredicates = new relationalStore.RdbPredicates('RecordGroup');
       groupPredicates.equalTo('id', groupId);
       await DatabaseManager.rdbStore.delete(groupPredicates);
-
     } catch (e) {
       console.error('删除分组及其记录失败:', JSON.stringify(e));
     }
   }
-
-
-
-
 }
