@@ -1,4 +1,5 @@
 import { DatabaseManager, SessionItem } from "../data/DatabaseManager";
+import emitter from '@ohos.events.emitter';
 
 @Builder
 export function HistoryBuilder(name: string, param: Object) {
@@ -30,10 +31,11 @@ export struct History {
     Menu() {
       MenuItem({ content: '删除该会话' })
         .onClick(async () => {
-          //删数据库
           await DatabaseManager.deleteSession(sessionId);
-          //刷新界面列表
           this.loadData();
+          emitter.emit({ eventId: 2001 }, {
+            data: { deletedId: sessionId }
+          });
         })
     }
   }

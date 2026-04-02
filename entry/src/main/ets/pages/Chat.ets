@@ -31,14 +31,42 @@ export struct Chat {
   private scroller: Scroller = new Scroller();
   private mdController: MarkdownController = new MarkdownController();
 
+  // aboutToAppear() {
+  //   this.requestMicPermission();
+  //   this.mdController.setThreadRenderEnable(true).setTextColor('#333333').setTextSize(16);
+  //   emitter.on({ eventId: 1002 }, () => {
+  //     this.inputValue = "请帮我看看这个植物的叶子怎么了？得了什么病？应该怎么用药防治？";
+  //     // 自动触发底部的拍照功能
+  //     this.takePhoto();
+  //   });
+  // }
   aboutToAppear() {
     this.requestMicPermission();
     this.mdController.setThreadRenderEnable(true).setTextColor('#333333').setTextSize(16);
+    // 监听拍照识别事件
     emitter.on({ eventId: 1002 }, () => {
       this.inputValue = "请帮我看看这个植物的叶子怎么了？得了什么病？应该怎么用药防治？";
-      // 自动触发底部的拍照功能
       this.takePhoto();
     });
+    // 监听历史记录被删除的事件
+    emitter.on({ eventId: 2001 }, (eventData: emitter.EventData) => {
+      let deletedId = eventData.data?.deletedId as number;
+      if (deletedId === this.currentSessionId) {
+        this.initLatestSession();
+      }
+    });
+
+    this.initLatestSession();
+  }
+
+  async initLatestSession() {
+    let sessionList = await DatabaseManager.getSessionList();
+    if (sessionList && sessionList.length > 0) {
+      this.loadHistorySession(sessionList[0].id);
+    } else {
+      this.currentSessionId = -1;
+      this.messageList = [new MessageModel('assistant', '你好！我是智慧农业AI助手，可以问我有关农业方面的知识，或者拍植物照片发给我分析哦。')];
+    }
   }
   async requestMicPermission() {
     let atManager = abilityAccessCtrl.createAtManager();
@@ -48,13 +76,13 @@ export struct Chat {
       promptAction.showToast({ message: '请在设置中开启麦克风权限' });
     }
   }
-  // 🌟 处理按下说话
+  // 处理按下说话
   async handleTouchDown() {
     this.isRecording = true;
     await AudioService.startRecording(getContext(this));
   }
 
-  // 🌟 处理松开发送
+  // 处理松开发送
   async handleTouchUp() {
     this.isRecording = false;
     promptAction.showToast({ message: '正在识别语音...' });
