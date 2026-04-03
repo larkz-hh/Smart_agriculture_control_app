@@ -1,4 +1,5 @@
 import { DatabaseManager } from '../data/DatabaseManager';
+import { ImageUtil } from '../utils/ImageUtil';
 import { PlantRecord } from '../model/RecordModel';
 import { photoAccessHelper } from '@kit.MediaLibraryKit';
 import { cameraPicker, camera } from '@kit.CameraKit';
@@ -33,27 +34,13 @@ struct CreateRecordDialog {
   @State inputDesc: string = '';
 
   async takePhoto() {
-    try {
-      let result = await cameraPicker.pick(this.context, [cameraPicker.PickerMediaType.PHOTO], { cameraPosition: camera.CameraPosition.CAMERA_POSITION_BACK });
-      if (result && result.resultUri) {
-        this.selectedUri = await copyImageToSandbox(this.context, result.resultUri);
-      }
-    } catch (err) {
-      console.error('拍照失败', JSON.stringify(err));
-    }
-
+    let uri = await ImageUtil.takePhotoWithCamera(this.context);
+    if (uri) this.selectedUri = uri;
   }
 
   async pickPhoto() {
-    try {
-      let photoPicker = new photoAccessHelper.PhotoViewPicker();
-      let result = await photoPicker.select({ MIMEType: photoAccessHelper.PhotoViewMIMETypes.IMAGE_TYPE, maxSelectNumber: 1 });
-      if (result && result.photoUris.length > 0) {
-        this.selectedUri = await copyImageToSandbox(this.context, result.photoUris[0]);
-      }
-    } catch (err) {
-      console.error('选择照片失败', JSON.stringify(err));
-    }
+    let uri = await ImageUtil.pickPhotoFromGallery(this.context);
+    if (uri) this.selectedUri = uri;
   }
 
   showActionSheet() {

@@ -2,6 +2,7 @@ import { MessageModel } from '../model/MessageModel';
 import { Markdown, MarkdownController } from '@luvi/lv-markdown-in';
 import { photoAccessHelper } from '@kit.MediaLibraryKit';
 import { cameraPicker, camera } from '@kit.CameraKit';
+import { ImageUtil } from '../utils/ImageUtil';
 import { fileIo } from '@kit.CoreFileKit';
 import util from '@ohos.util';
 import { common } from '@kit.AbilityKit';
@@ -104,65 +105,25 @@ export struct Chat {
     }
   }
 
-  //调用系统相册选择
+  // 调用系统相册选择
   async pickPhoto() {
-    try {
-      let PhotoSelectOptions = new photoAccessHelper.PhotoSelectOptions();
-      PhotoSelectOptions.MIMEType = photoAccessHelper.PhotoViewMIMETypes.IMAGE_TYPE;
-      PhotoSelectOptions.maxSelectNumber = 1;
-      let photoPicker = new photoAccessHelper.PhotoViewPicker();
-      let photoSelectResult = await photoPicker.select(PhotoSelectOptions);
-      if (photoSelectResult && photoSelectResult.photoUris.length > 0) {
-        this.processImageUri(photoSelectResult.photoUris[0]);
-      }
-    } catch (err) {
-      console.error('选择图片失败:', err);
-    }
+    let context = getContext(this) as common.UIAbilityContext;
+    let uri = await ImageUtil.pickPhotoFromGallery(context);
+    this.handleImageSelected(uri);
   }
 
-  //调用系统相机拍照
+  // 调用系统相机拍照
   async takePhoto() {
-    try {
-      let pickerProfile: cameraPicker.PickerProfile = {
-        cameraPosition: camera.CameraPosition.CAMERA_POSITION_BACK
-      };
-      let context = getContext(this) as common.UIAbilityContext;
-      let result = await cameraPicker.pick(context, [cameraPicker.PickerMediaType.PHOTO], pickerProfile);
-      if (result && result.resultUri) {
-        this.processImageUri(result.resultUri);
-      }
-    } catch (err) {
-      console.error('拍照失败:', err);
-    }
+    let context = getContext(this) as common.UIAbilityContext;
+    let uri = await ImageUtil.takePhotoWithCamera(context);
+    this.handleImageSelected(uri);
   }
 
-  // 图片转为Base64
-  async processImageUri(uri: string) {
-    try {
-      let context = getContext(this) as common.UIAbilityContext;
-      // 1. 生成应用沙箱内部路径
-      let ext = uri.split('.').pop() || 'jpg';
-      let localPath = `${context.filesDir}/${Date.now()}.${ext}`;
-
-      // 将相册临时图片拷贝到App沙箱中
-      let srcFile = fileIo.openSync(uri, fileIo.OpenMode.READ_ONLY);
-      fileIo.copyFileSync(srcFile.fd, localPath);
-
-      // 界面渲染沙箱里永久有效的路径
-      this.selectedImageUri = `file://${localPath}`;
-
-      // 源文件读取为 Buffer 并转为 Base64
-      let stat = fileIo.statSync(srcFile.fd);
-      let buffer = new ArrayBuffer(stat.size);
-      fileIo.readSync(srcFile.fd, buffer);
-      fileIo.closeSync(srcFile.fd);
-
-      let base64Helper = new util.Base64Helper();
-      let base64Str = base64Helper.encodeToStringSync(new Uint8Array(buffer));
-      this.selectedImageBase64 = 'data:image/jpeg;base64,' + base64Str;
-
-    } catch (e) {
-      console.error('图片拷贝/转换失败:', JSON.stringify(e));
+  // 统一处理拿到的永久 URI，顺便转个 Base64 准备发给AI
+  private handleImageSelected(uri: string) {
+    if (uri) {
+      this.selectedImageUri = uri;
+      this.selectedImageBase64 = ImageUtil.imageUriToBase64(uri);
     }
   }
 
