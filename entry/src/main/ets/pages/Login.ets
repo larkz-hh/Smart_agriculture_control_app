@@ -79,62 +79,73 @@ export struct Login {
 
   build() {
     NavDestination() {
-      Column({ space: 20 }) {
-        Image($r('app.media.app_icon'))
-          .width(80)
-          .height(80)
-          .margin({ top: 80, bottom: 30 })
-          .borderRadius(16)
+      Column() {
+        Column({ space: 20 }) {
+          Image($r('app.media.app_icon'))
+            .width(80)
+            .height(80)
+            .margin({ top: 80, bottom: 30 })
+            .borderRadius(16)
 
-        Text('智慧农业控制系统')
-          .fontSize(24)
-          .fontWeight(FontWeight.Bold)
-          .margin({ bottom: 40 })
+          Text('智慧农业控制系统')
+            .fontSize(24)
+            .fontWeight(FontWeight.Bold)
+            .margin({ bottom: 40 })
 
-        TextInput({ placeholder: '请输入邮箱账号', text: this.username })
-          .height(50)
-          .type(InputType.Email)
-          .backgroundColor('#F5F5F5')
-          .onChange((value: string) => this.username = value)
-
-        Row({ space: 10 }) {
-          TextInput({ placeholder: '请输入验证码', text: this.verifyCode })
+          TextInput({ placeholder: '请输入邮箱子账号', text: this.username })
             .height(50)
-            .layoutWeight(1)
+            .type(InputType.Email)
             .backgroundColor('#F5F5F5')
-            .onChange((value: string) => this.verifyCode = value)
+            .onChange((value: string) => this.username = value)
 
-          Button(this.isCountingDown ? `${this.countdown}s后重试` : '获取验证码')
-            .height(50)
-            .width(120)
-            .backgroundColor(this.isCountingDown ? '#CCCCCC' : '#63AAAA')
-            .enabled(!this.isCountingDown)
-            .onClick(() => this.handleGetVerifyCode())
+          Row({ space: 10 }) {
+            TextInput({ placeholder: '请输入验证码', text: this.verifyCode })
+              .height(50)
+              .layoutWeight(1)
+              .backgroundColor('#F5F5F5')
+              .onChange((value: string) => this.verifyCode = value)
+
+            Button(this.isCountingDown ? `${this.countdown}s后重试` : '获取验证码')
+              .height(50)
+              .width(120)
+              .backgroundColor(this.isCountingDown ? '#CCCCCC' : '#63AAAA')
+              .enabled(!this.isCountingDown)
+              .onClick(() => this.handleGetVerifyCode())
+          }
+          .width('100%')
+
+          Button('验证码登录')
+            .width('100%')
+            .height(45)
+            .backgroundColor('#63AAAA')
+            .margin({ top: 20 })
+            .onClick(() => this.handleLogin())
+
+          Row() {
+            Text('还没有账号？').fontColor('#999').fontSize(14)
+            Text('立即注册')
+              .fontColor('#63AAAA')
+              .fontSize(14)
+              .onClick(() => {
+                this.pathStack.pushPathByName('Register', null);
+              })
+          }
+          .margin({ top: 20 })
         }
         .width('100%')
-
-        Button('验证码登录')
+        .padding({ left: 30, right: 30 })
+        .layoutWeight(1)
+        Image($r('app.media.farm'))
           .width('100%')
-          .height(45)
-          .backgroundColor('#63AAAA')
-          .margin({ top: 20 })
-          .onClick(() => this.handleLogin())
+          .objectFit(ImageFit.Cover)
+          .align(Alignment.Bottom)
+          .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.BOTTOM])
 
-        Row() {
-          Text('还没有账号？').fontColor('#999').fontSize(14)
-          Text('立即注册')
-            .fontColor('#63AAAA')
-            .fontSize(14)
-            .onClick(() => {
-              this.pathStack.pushPathByName('Register', null);
-            })
-        }
-        .margin({ top: 20 })
       }
       .width('100%')
       .height('100%')
-      .padding(30)
       .backgroundColor(Color.White)
+      .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.BOTTOM])
     }
     .hideTitleBar(true)
     .onReady((context: NavDestinationContext) => {

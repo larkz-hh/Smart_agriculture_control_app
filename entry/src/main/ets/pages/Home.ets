@@ -3,7 +3,7 @@ import emitter from '@ohos.events.emitter';
 import { common } from '@kit.AbilityKit';
 import { HomeViewModel } from '../viewmodel/HomeViewModel';
 import { WeatherInfo } from '../model/WeatherModel';
-
+@Preview
 @Component
 export struct Home {
 
@@ -135,16 +135,21 @@ export struct Home {
               .fontSize(22)
               .fontWeight(FontWeight.Bold)
               .fontColor('#1A1A1A')
-            Text('随时掌握农场动态，科学种植')
-              .fontSize(12)
-              .fontColor('#666')
-              .margin({ top: 4 })
+            // Text('随时掌握农场动态，科学种植')
+            //   .fontSize(12)
+            //   .fontColor('#666')
+            //   .margin({ top: 4 })
           }.alignItems(HorizontalAlign.Start)
           Blank()
+          Image($r('app.media.greenhouse'))
+            .width(180)
+            .height(100)
+            .objectFit(ImageFit.Contain)
+            .opacity(0.4)
+            .margin({ top:-5, right: 10 })
         }
         .width('100%')
-        .padding({ left: 15, right: 15, top: 15, bottom: 15 })
-
+        .padding({ left: 15, right: 15, top: 15})
         this.WeatherCard()
 
         // 快捷导航(金刚区)

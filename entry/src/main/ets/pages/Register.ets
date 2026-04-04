@@ -5,7 +5,7 @@ import { AuthViewModel } from '../viewmodel/AuthViewModel';
 export function RegisterBuilder(name: string, param: Object) {
   Register()
 }
-
+@Preview
 @Component
 export struct Register {
   @State email: string = '';
@@ -63,49 +63,68 @@ export struct Register {
 
   build() {
     NavDestination() {
-      Column({ space: 15 }) {
-        Text('注册新账号')
-          .fontSize(24).fontWeight(FontWeight.Bold).width('100%')
-          .textAlign(TextAlign.Start).margin({ top: 40, bottom: 20 })
+      // 最外层容器：去掉 padding，让内部元素可以贴边
+      Column() {
 
-        TextInput({ placeholder: '请输入邮箱地址', text: this.email })
-          .height(50).type(InputType.Email).backgroundColor('#F5F5F5')
-          .onChange((value: string) => this.email = value)
+        // 上半部分：表单内容区 (通过 layoutWeight 占满剩余空间，把图片挤到最底下)
+        Column({ space: 15 }) {
+          Text('注册新账号')
+            .fontSize(24).fontWeight(FontWeight.Bold).width('100%')
+            .textAlign(TextAlign.Start).margin({ top: 40, bottom: 20 })
 
-        TextInput({ placeholder: '请输入密码 (至少8位，含2种字符)', text: this.password })
-          .height(50).type(InputType.Password).backgroundColor('#F5F5F5')
-          .onChange((value: string) => this.password = value)
+          TextInput({ placeholder: '请输入邮箱地址', text: this.email })
+            .height(50).type(InputType.Email).backgroundColor('#F5F5F5')
+            .onChange((value: string) => this.email = value)
 
-        TextInput({ placeholder: '请确认密码', text: this.confirmPassword })
-          .height(50).type(InputType.Password).backgroundColor('#F5F5F5')
-          .onChange((value: string) => this.confirmPassword = value)
+          TextInput({ placeholder: '请输入密码 (至少8位，含2种字符)', text: this.password })
+            .height(50).type(InputType.Password).backgroundColor('#F5F5F5')
+            .onChange((value: string) => this.password = value)
 
-        Row({ space: 10 }) {
-          TextInput({ placeholder: '请输入验证码', text: this.verifyCode })
-            .height(50).layoutWeight(1).backgroundColor('#F5F5F5')
-            .onChange((value: string) => this.verifyCode = value)
+          TextInput({ placeholder: '请确认密码', text: this.confirmPassword })
+            .height(50).type(InputType.Password).backgroundColor('#F5F5F5')
+            .onChange((value: string) => this.confirmPassword = value)
 
-          Button(this.isCountingDown ? `${this.countdown}s后重试` : '获取验证码')
-            .height(50).width(120)
-            .backgroundColor(this.isCountingDown ? '#CCCCCC' : '#63AAAA')
-            .enabled(!this.isCountingDown)
-            .onClick(() => this.handleGetVerifyCode())
-        }.width('100%')
+          Row({ space: 10 }) {
+            TextInput({ placeholder: '请输入验证码', text: this.verifyCode })
+              .height(50).layoutWeight(1).backgroundColor('#F5F5F5')
+              .onChange((value: string) => this.verifyCode = value)
 
-        Button('注 册')
-          .width('100%').height(45).backgroundColor('#63AAAA')
-          .margin({ top: 30 })
-          .onClick(() => this.handleRegister())
+            Button(this.isCountingDown ? `${this.countdown}s后重试` : '获取验证码')
+              .height(50).width(120)
+              .backgroundColor(this.isCountingDown ? '#CCCCCC' : '#63AAAA')
+              .enabled(!this.isCountingDown)
+              .onClick(() => this.handleGetVerifyCode())
+          }.width('100%')
 
-        Button('返回登录')
-          .width('100%').height(45).backgroundColor(Color.Transparent).fontColor('#999')
-          .onClick(() => { this.pathStack.pop(); })
+          Button('注 册')
+            .width('100%').height(45).backgroundColor('#63AAAA')
+            .margin({ top: 30 })
+            .onClick(() => this.handleRegister())
+
+          Button('返回登录')
+            .width('100%').height(45).backgroundColor(Color.Transparent).fontColor('#999')
+            .onClick(() => { this.pathStack.pop(); })
+        }
+        .width('100%')
+        .padding({ left: 30, right: 30 })
+        .layoutWeight(1)
+
+        Image($r('app.media.farm'))
+          .width('100%')
+          .objectFit(ImageFit.Cover)
+          .align(Alignment.Bottom)
+          .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.BOTTOM])
+
       }
-      .width('100%').height('100%').padding(30).backgroundColor(Color.White)
+      .width('100%')
+      .height('100%')
+      .backgroundColor(Color.White)
+      .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.BOTTOM])
     }
     .hideTitleBar(true)
     .onReady((context: NavDestinationContext) => {
       this.pathStack = context.pathStack;
     })
   }
+
 }

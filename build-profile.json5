@@ -5,13 +5,13 @@
         "name": "default",
         "type": "HarmonyOS",
         "material": {
-          "certpath": "C:\\Users\\ASUS\\.ohos\\config\\default_Smart_agriculture_control_app_zoeeszsAYWZaxxoNk6lnnM58yBshAPJ-pqyvr1rOeLs=.cer",
+          "certpath": "C:/Users/ASUS/.ohos/config/default_Smart_agriculture_control_app_zoeeszsAYWZaxxoNk6lnnM58yBshAPJ-pqyvr1rOeLs=.cer",
           "keyAlias": "debugKey",
-          "keyPassword": "0000001BDEA15D124494308393B9298853088515CD7646852F0F4B60D16FBE56BC022A60DF4647C7D45EC8",
-          "profile": "C:\\Users\\ASUS\\.ohos\\config\\default_Smart_agriculture_control_app_zoeeszsAYWZaxxoNk6lnnM58yBshAPJ-pqyvr1rOeLs=.p7b",
+          "keyPassword": "0000001B3460552EFA86FE4C37DFD1EB67C849AB1109A27CFDE89BEA30D9A6FA2E878DC6479F7A2472F95B",
+          "profile": "C:/Users/ASUS/.ohos/config/default_Smart_agriculture_control_app_zoeeszsAYWZaxxoNk6lnnM58yBshAPJ-pqyvr1rOeLs=.p7b",
           "signAlg": "SHA256withECDSA",
-          "storeFile": "C:\\Users\\ASUS\\.ohos\\config\\default_Smart_agriculture_control_app_zoeeszsAYWZaxxoNk6lnnM58yBshAPJ-pqyvr1rOeLs=.p12",
-          "storePassword": "0000001BD05C1466C91DEAF5B1B142C2B6EEAB967A6657411709C984A58D379FC5840FC7E7BBA0C1F80D9D"
+          "storeFile": "C:/Users/ASUS/.ohos/config/default_Smart_agriculture_control_app_zoeeszsAYWZaxxoNk6lnnM58yBshAPJ-pqyvr1rOeLs=.p12",
+          "storePassword": "0000001BB62F1574AD13CD13ECAA9A89F1EE264319F618FF32D63E39A543D88C80052499E194F5A77AF8A7"
         }
       }
     ],
