@@ -57,16 +57,13 @@ export struct Register {
     if (result.success) {
       // 保存账号
       AppStorage.setOrCreate('local_username', this.email);
-      this.pathStack.pop();
+      this.pathStack  .pop();
     }
   }
 
   build() {
     NavDestination() {
-      // 最外层容器：去掉 padding，让内部元素可以贴边
       Column() {
-
-        // 上半部分：表单内容区 (通过 layoutWeight 占满剩余空间，把图片挤到最底下)
         Column({ space: 15 }) {
           Text('注册新账号')
             .fontSize(24).fontWeight(FontWeight.Bold).width('100%')
@@ -76,7 +73,7 @@ export struct Register {
             .height(50).type(InputType.Email).backgroundColor('#F5F5F5')
             .onChange((value: string) => this.email = value)
 
-          TextInput({ placeholder: '请输入密码 (至少8位，含2种字符)', text: this.password })
+          TextInput({ placeholder: '请输入密码', text: this.password })
             .height(50).type(InputType.Password).backgroundColor('#F5F5F5')
             .onChange((value: string) => this.password = value)
 
