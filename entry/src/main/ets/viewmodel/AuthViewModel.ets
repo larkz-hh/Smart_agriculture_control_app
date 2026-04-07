@@ -111,6 +111,29 @@ export class AuthViewModel {
       return error instanceof Error ? error.message : '发送失败';
     }
   }
+  /**
+   * 【登录】操作 - 密码登录
+   */
+  static async loginByPassword(email: string, password: string): Promise<LoginResult> {
+    if (!email || !password) {
+      return new LoginResult(false, '请完整填写邮箱和密码');
+    }
+
+    try {
+      let res = await AuthService.signInWithPassword(email, password);
+
+      if (res.ret && res.ret.code === 0) {
+        let token = res.accessToken?.token ? res.accessToken.token : '';
+        return new LoginResult(true, '登录成功', token);
+      } else if (res.ret && res.ret.code === 203818032) {
+        return new LoginResult(false, '该账号尚未注册，请先注册');
+      } else {
+        return new LoginResult(false, res.ret?.msg || '账号或密码错误');
+      }
+    } catch (error) {
+      return new LoginResult(false, '网络异常，请重试');
+    }
+  }
 
   /**
    * 【登录】操作

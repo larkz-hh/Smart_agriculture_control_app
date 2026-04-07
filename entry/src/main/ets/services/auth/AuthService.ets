@@ -194,9 +194,9 @@ export class AuthService {
             'Authorization': `Bearer ${token}`
           },
           extraData: {
-            provider: 12, // 邮箱
+            provider: 12, // 12代表邮箱
             token: email,
-            password: password, // 直接使用密码登录
+            extraData: JSON.stringify({ "password": password }), // 正确的格式
             autoCreateUser: 0,
             useJwt: 1
           },
