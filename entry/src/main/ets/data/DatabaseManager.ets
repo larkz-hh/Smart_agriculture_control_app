@@ -1,13 +1,11 @@
 import relationalStore from '@ohos.data.relationalStore';
 import { common } from '@kit.AbilityKit';
-import { MessageModel } from '../model/MessageModel';
+import { MessageModel, SessionItem } from '../model/MessageModel';
 import { PlantRecord, RecordGroup } from '../model/RecordModel';
+import { GreenhouseModel } from '../model/GreenhouseModel';
 
-export interface SessionItem {
-  id: number;
-  title: string;
-  timestamp: number;
-}
+
+
 
 export class DatabaseManager {
   private static rdbStore: relationalStore.RdbStore | null = null;
@@ -18,6 +16,13 @@ export class DatabaseManager {
       name: 'AgriChat.db',
       securityLevel: relationalStore.SecurityLevel.S1
     };
+    const createGreenhouseTable = `CREATE TABLE IF NOT EXISTS Greenhouse (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT,
+      deviceId TEXT,
+      crop TEXT,
+      stage INTEGER
+    )`;
 
     const createSessionTable = `CREATE TABLE IF NOT EXISTS Session (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -47,6 +52,7 @@ export class DatabaseManager {
 
     try {
       DatabaseManager.rdbStore = await relationalStore.getRdbStore(context, config);
+      await DatabaseManager.rdbStore.executeSql(createGreenhouseTable);
       await DatabaseManager.rdbStore.executeSql(createSessionTable);
       await DatabaseManager.rdbStore.executeSql(createMessageTable);
       await DatabaseManager.rdbStore.executeSql(createRecordGroupTable);
@@ -177,7 +183,11 @@ export class DatabaseManager {
   static async insertRecordGroup(name: string): Promise<void> {
     if (!DatabaseManager.rdbStore) return;
     let bucket: relationalStore.ValuesBucket = { name: name, updateTime: Date.now() };
-    await DatabaseManager.rdbStore.insert('RecordGroup', bucket);
+    try {
+      await DatabaseManager.rdbStore.insert('RecordGroup', bucket);
+    } catch (e) {
+      console.error('删除记录失败:', JSON.stringify(e));
+    }
   }
 
   static async getRecordGroups(): Promise<RecordGroup[]> {
@@ -250,5 +260,51 @@ export class DatabaseManager {
     } catch (e) {
       console.error('删除分组及其记录失败:', JSON.stringify(e));
     }
+  }
+  // 新增大棚
+  static async insertGreenhouse(gh: GreenhouseModel): Promise<number> {
+    if (!DatabaseManager.rdbStore) return -1;
+    let bucket: relationalStore.ValuesBucket = {
+      name: gh.name, deviceId: gh.deviceId, crop: gh.crop, stage: gh.stage
+    };
+    return await DatabaseManager.rdbStore.insert('Greenhouse', bucket);
+  }
+
+  //查询所有大棚
+  static async getGreenhouseList(): Promise<GreenhouseModel[]> {
+    if (!DatabaseManager.rdbStore) return [];
+    let predicates = new relationalStore.RdbPredicates('Greenhouse');
+    let rs = await DatabaseManager.rdbStore.query(predicates);
+    let list: GreenhouseModel[] = [];
+    while (rs.goToNextRow()) {
+      list.push({
+        id: rs.getLong(rs.getColumnIndex('id')),
+        name: rs.getString(rs.getColumnIndex('name')),
+        deviceId: rs.getString(rs.getColumnIndex('deviceId')),
+        crop: rs.getString(rs.getColumnIndex('crop')),
+        stage: rs.getLong(rs.getColumnIndex('stage'))
+      });
+    }
+    rs.close();
+    return list;
+  }
+
+  // 更新大棚信息
+  static async updateGreenhouse(gh: GreenhouseModel) {
+    if (!DatabaseManager.rdbStore || !gh.id) return;
+    let bucket: relationalStore.ValuesBucket = {
+      name: gh.name, deviceId: gh.deviceId, crop: gh.crop, stage: gh.stage
+    };
+    let predicates = new relationalStore.RdbPredicates('Greenhouse');
+    predicates.equalTo('id', gh.id);
+    await DatabaseManager.rdbStore.update(bucket, predicates);
+  }
+
+  //删除大棚
+  static async deleteGreenhouse(id: number) {
+    if (!DatabaseManager.rdbStore) return;
+    let predicates = new relationalStore.RdbPredicates('Greenhouse');
+    predicates.equalTo('id', id);
+    await DatabaseManager.rdbStore.delete(predicates);
   }
 }
