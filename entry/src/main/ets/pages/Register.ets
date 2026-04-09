@@ -5,6 +5,7 @@ import { AuthViewModel } from '../viewmodel/AuthViewModel';
 export function RegisterBuilder(name: string, param: Object) {
   Register()
 }
+
 @Preview
 @Component
 export struct Register {
@@ -26,7 +27,23 @@ export struct Register {
     }
   }
 
-  //获取验证码点击处理
+  // 判断“获取验证码”按钮是否可以点击
+  isGetCodeEnabled(): boolean {
+    // 只有当账号、密码、确认密码都填写了，且不在倒计时中，才能点击
+    return this.email.trim().length > 0 &&
+      this.password.length > 0 &&
+      this.confirmPassword.length > 0 &&
+      !this.isCountingDown;
+  }
+
+  // “注册”按钮是否可以点击
+  isRegisterEnabled(): boolean {
+    return this.email.trim().length > 0 &&
+      this.password.length > 0 &&
+      this.confirmPassword.length > 0 &&
+      this.verifyCode.trim().length > 0;
+  }
+  // 获取验证码点击处理
   async handleGetVerifyCode() {
     let errorMsg = await AuthViewModel.getVerifyCode(this.email, this.password, this.confirmPassword);
 
@@ -35,7 +52,7 @@ export struct Register {
       return;
     }
 
-    // 通过检查并发送成功，开启计时器，倒计时30s
+    // 校验全部通过并发送成功，开启计时器，倒计时30s
     promptAction.showToast({ message: '验证码已发送，请查收邮件' });
     this.isCountingDown = true;
     this.countdown = 30;
@@ -48,7 +65,7 @@ export struct Register {
     }, 1000);
   }
 
-  //注册点击处理
+  // 注册点击处理
   async handleRegister() {
     let result = await AuthViewModel.register(this.email, this.password, this.confirmPassword, this.verifyCode);
 
@@ -57,7 +74,7 @@ export struct Register {
     if (result.success) {
       // 保存账号
       AppStorage.setOrCreate('local_username', this.email);
-      this.pathStack  .pop();
+      this.pathStack.pop();
     }
   }
 
@@ -88,13 +105,15 @@ export struct Register {
 
             Button(this.isCountingDown ? `${this.countdown}s后重试` : '获取验证码')
               .height(50).width(120)
-              .backgroundColor(this.isCountingDown ? '#CCCCCC' : '#63AAAA')
-              .enabled(!this.isCountingDown)
+              .backgroundColor(this.isGetCodeEnabled() ? '#63AAAA' : '#CCCCCC')
+              .enabled(this.isGetCodeEnabled()) // 控制是否可点击
               .onClick(() => this.handleGetVerifyCode())
           }.width('100%')
 
           Button('注 册')
-            .width('100%').height(45).backgroundColor('#63AAAA')
+            .width('100%').height(45)
+            .backgroundColor(this.isRegisterEnabled() ? '#63AAAA' : '#CCCCCC')
+            .enabled(this.isRegisterEnabled())
             .margin({ top: 30 })
             .onClick(() => this.handleRegister())
 
@@ -123,5 +142,4 @@ export struct Register {
       this.pathStack = context.pathStack;
     })
   }
-
 }

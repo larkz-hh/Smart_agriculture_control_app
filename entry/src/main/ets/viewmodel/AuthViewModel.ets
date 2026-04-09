@@ -35,7 +35,7 @@ export class AuthViewModel {
     if (/[a-z]/.test(pwd)) typeCount++; //小写
     if (/[0-9]/.test(pwd)) typeCount++; //数字
     if (/[^A-Za-z0-9]/.test(pwd)) typeCount++; // 符号
-    if (typeCount < 2) return '密码需至少包含大写、小写、数字、符号中的2种';
+    if (typeCount < 2) return '密码需至少包含字母、数字、符号中的2种';
     return '';
   }
 
@@ -159,3 +159,51 @@ export class AuthViewModel {
     }
   }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
