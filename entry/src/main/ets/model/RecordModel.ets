@@ -7,7 +7,7 @@ export class RecordGroup {
   updateTime: number = 0;
 }
 
-// 单条种植记录模型
+//单条种植记录模型
 export class PlantRecord {
   id: string;
   groupId: number = 0;

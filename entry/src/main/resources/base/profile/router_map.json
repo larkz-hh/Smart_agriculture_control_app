@@ -49,6 +49,11 @@
       "name": "RecordDetail",
       "pageSourceFile": "src/main/ets/pages/RecordDetail.ets",
       "buildFunction": "RecordDetailBuilder"
+    },
+    {
+      "name": "MonitorDetail",
+      "pageSourceFile": "src/main/ets/pages/MonitorDetail.ets",
+      "buildFunction": "MonitorDetailBuilder"
     }
   ]
 }

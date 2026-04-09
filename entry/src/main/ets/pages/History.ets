@@ -1,5 +1,6 @@
-import { DatabaseManager, SessionItem } from "../data/DatabaseManager";
+import { DatabaseManager } from "../data/DatabaseManager";
 import emitter from '@ohos.events.emitter';
+import { SessionItem } from "../model/MessageModel";
 
 @Builder
 export function HistoryBuilder(name: string, param: Object) {

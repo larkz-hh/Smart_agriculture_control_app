@@ -26,3 +26,8 @@ export class MessageModel {
     return `${hours}:${minutes}`;
   }
 }
+export interface SessionItem {
+  id: number;
+  title: string;
+  timestamp: number;
+}
