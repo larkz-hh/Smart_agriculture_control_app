@@ -8,7 +8,7 @@ interface MineItem {
   text: string;
   tag?: string;
 }
-
+@Preview
 @Component
 export struct Mine {
   pathStack?: NavPathStack;
@@ -35,9 +35,10 @@ export struct Mine {
   }
 
   private mineList: MineItem[] = [
-    { icon: $r('app.media.app_icon'), text: '设置' },
-    { icon: $r('app.media.app_icon'), text: '关于智慧农业' },
-    { icon: $r('app.media.app_icon'), text: '退出登录' },
+    { icon: $r('app.media.setting'), text: '设置' },
+    { icon: $r('app.media.service'), text: '客服' },
+    { icon: $r('app.media.about'), text: '关于' },
+    { icon: $r('app.media.logout'), text: '退出登录' },
   ];
 
   // 选择图片
@@ -72,7 +73,7 @@ export struct Mine {
     Row() {
       // 左侧图标
       Stack() {
-        Circle({ width: 36, height: 36 }).fill('#F2F2F2')
+        Circle({ width: 36, height: 36 }).fill('#FFFFFF')
         Image(item.icon)
           .width(20)
           .height(20)
