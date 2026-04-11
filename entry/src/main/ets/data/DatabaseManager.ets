@@ -21,7 +21,8 @@ export class DatabaseManager {
       name TEXT,
       deviceId TEXT,
       crop TEXT,
-      stage INTEGER
+      stage INTEGER,
+      camUrl TEXT
     )`;
 
     const createSessionTable = `CREATE TABLE IF NOT EXISTS Session (
@@ -265,7 +266,7 @@ export class DatabaseManager {
   static async insertGreenhouse(gh: GreenhouseModel): Promise<number> {
     if (!DatabaseManager.rdbStore) return -1;
     let bucket: relationalStore.ValuesBucket = {
-      name: gh.name, deviceId: gh.deviceId, crop: gh.crop, stage: gh.stage
+      name: gh.name, deviceId: gh.deviceId, crop: gh.crop, stage: gh.stage,camUrl: gh.camUrl || ''
     };
     return await DatabaseManager.rdbStore.insert('Greenhouse', bucket);
   }
@@ -282,7 +283,8 @@ export class DatabaseManager {
         name: rs.getString(rs.getColumnIndex('name')),
         deviceId: rs.getString(rs.getColumnIndex('deviceId')),
         crop: rs.getString(rs.getColumnIndex('crop')),
-        stage: rs.getLong(rs.getColumnIndex('stage'))
+        stage: rs.getLong(rs.getColumnIndex('stage')),
+        camUrl: rs.getString(rs.getColumnIndex('camUrl'))
       });
     }
     rs.close();
@@ -293,7 +295,7 @@ export class DatabaseManager {
   static async updateGreenhouse(gh: GreenhouseModel) {
     if (!DatabaseManager.rdbStore || !gh.id) return;
     let bucket: relationalStore.ValuesBucket = {
-      name: gh.name, deviceId: gh.deviceId, crop: gh.crop, stage: gh.stage
+      name: gh.name, deviceId: gh.deviceId, crop: gh.crop, stage: gh.stage,camUrl: gh.camUrl || ''
     };
     let predicates = new relationalStore.RdbPredicates('Greenhouse');
     predicates.equalTo('id', gh.id);

@@ -2,6 +2,9 @@ import { promptAction } from '@kit.ArkUI';
 import { GreenhouseModel } from '../model/GreenhouseModel';
 import { IotService } from '../services/iot/IotService';
 import { DatabaseManager } from '../data/DatabaseManager';
+import window from '@ohos.window';
+import { webview } from '@kit.ArkWeb';
+
 
 @Component
 struct HorizontalDataCard {
@@ -10,6 +13,8 @@ struct HorizontalDataCard {
   @Prop unit: string = '';
   @Prop colorCode: string = '';
   @Prop isSystemOnline: boolean = false;
+
+
 
   build() {
     Column() {
@@ -93,6 +98,10 @@ struct EditGreenhouseDialog {
       TextInput({ placeholder: '种植作物 (可选)', text: this.ghData.crop })
         .onChange((val) => this.ghData.crop = val)
 
+
+      TextInput({ placeholder: 'ESP32-CAM 流地址 (如 http://IP:81/stream)', text: this.ghData.camUrl || '' })
+        .onChange((val) => this.ghData.camUrl = val)
+
       Row() {
         Text('生长阶段(选填)：').fontSize(14).fontColor('#666')
         Select([{value:'未设置'}, {value:'育苗'}, {value:'生长'}, {value:'开花'}, {value:'结果'}])
@@ -136,8 +145,11 @@ export struct MonitorDetail {
   pathStack: NavPathStack = new NavPathStack();
   @State ghData: GreenhouseModel = new GreenhouseModel();
   @State editGhData: GreenhouseModel = new GreenhouseModel();
+  controller: webview.WebviewController = new webview.WebviewController();
 
   @State isDrawerOpen: boolean = false;
+  // 全屏状态标志
+  @State isFullScreen: boolean = false;
 
   dialogController: CustomDialogController = new CustomDialogController({
     builder: EditGreenhouseDialog({
@@ -147,6 +159,7 @@ export struct MonitorDetail {
         this.ghData.deviceId = this.editGhData.deviceId;
         this.ghData.crop = this.editGhData.crop;
         this.ghData.stage = this.editGhData.stage;
+        this.ghData.camUrl = this.editGhData.camUrl; // 保存视频流地址
 
         DatabaseManager.updateGreenhouse(this.ghData).then(() => {
           promptAction.showToast({ message: '修改成功' });
@@ -186,12 +199,30 @@ export struct MonitorDetail {
     this.fetchShadowData();
   }
 
+  // 横竖屏切换
+  async toggleFullScreen(isFull: boolean) {
+    this.isFullScreen = isFull;
+    try {
+      let win = await window.getLastWindow(getContext(this));
+      if (isFull) {
+        // 强制横屏，并隐藏状态栏导航栏
+        await win.setPreferredOrientation(window.Orientation.LANDSCAPE);
+        await win.setWindowSystemBarEnable([]);
+      } else {
+        // 恢复竖屏，显示状态栏
+        await win.setPreferredOrientation(window.Orientation.PORTRAIT);
+        await win.setWindowSystemBarEnable(['status', 'navigation']);
+      }
+    } catch (err) {
+      console.error('切换横竖屏失败', JSON.stringify(err));
+    }
+  }
+
   async fetchShadowData() {
     if (!this.ghData.deviceId) return;
 
     try {
       let res = await IotService.getDeviceShadow(this.ghData.deviceId);
-
       if (res.code === 200 && res.data) {
         this.isSystemOnline = true;
         this.airTemp = res.data.Temperature.toString();
@@ -231,11 +262,33 @@ export struct MonitorDetail {
     }
   }
 
+  //  提取出视频画面内容（复用）
+  @Builder VideoContent() {
+    if (this.ghData.camUrl) {
+      // 填入视频流地址
+      Web({ src: this.ghData.camUrl, controller: this.controller })
+        .width('100%')
+        .height('100%')
+        .backgroundColor(Color.Black)
+        // 允许各种网页能力，保证视频流顺畅
+        .javaScriptAccess(true)
+        .domStorageAccess(true)
+        .mediaPlayGestureAccess(false) // 允许自动播放
+    } else {
+      // 没有视频流时显示默认图片
+      Image($r('app.media.app_icon'))
+        .width('100%')
+        .height('100%')
+        .objectFit(ImageFit.Cover)
+    }
+  }
+
   build() {
     NavDestination() {
 
       Stack() {
 
+        // ================== 主页面内容 ==================
         Scroll() {
           Column() {
             Row() {
@@ -253,24 +306,39 @@ export struct MonitorDetail {
               Blank()
 
               Image($r('app.media.app_icon'))
-                .width(24)
-                .height(24)
+                .width(24).height(24)
                 .onClick(() => {
                   this.editGhData.id = this.ghData.id;
                   this.editGhData.name = this.ghData.name;
                   this.editGhData.deviceId = this.ghData.deviceId;
                   this.editGhData.crop = this.ghData.crop;
                   this.editGhData.stage = this.ghData.stage;
+                  this.editGhData.camUrl = this.ghData.camUrl;
                   this.dialogController.open();
                 })
             }.width('100%').padding(15)
 
+            // 正常状态下的视频窗口
             Stack() {
-              Image($r('app.media.app_icon')).width('100%').height(200).objectFit(ImageFit.Cover)
+              this.VideoContent()
+
               Row({ space: 6 }) {
                 Circle({ width: 8, height: 8 }).fill('#FF4D4F')
                 Text('LIVE 实时监控').fontSize(12).fontColor(Color.White)
               }.position({ x: 10, y: 10 }).backgroundColor('#66000000').padding(6).borderRadius(12)
+
+              // 全屏按钮
+              Row() {
+                Text('[ 全屏放大 ]').fontSize(12).fontColor(Color.White).fontWeight(FontWeight.Medium)
+              }
+              .position({ right: 10, bottom: 10 })
+              .backgroundColor('rgba(0,0,0,0.6)')
+              .padding({ left: 10, right: 10, top: 5, bottom: 5 })
+              .borderRadius(8)
+              .onClick(() => {
+                this.toggleFullScreen(true);
+              })
+
             }.width('92%').height(200).backgroundColor('#000').borderRadius(16).clip(true)
 
             Text('环境数据监测').fontSize(16).fontWeight(FontWeight.Bold).width('100%').padding({ left: 15, top: 20, bottom: 10 })
@@ -282,19 +350,14 @@ export struct MonitorDetail {
               ListItem() { HorizontalDataCard({ title: '光照强度', value: this.lightLux, unit: 'Lx', colorCode: '#FCC419', isSystemOnline: this.isSystemOnline }) }
               ListItem() { HorizontalDataCard({ title: 'CO2浓度', value: this.co2, unit: 'ppm', colorCode: '#A9A9A9', isSystemOnline: this.isSystemOnline }) }
             }
-            .listDirection(Axis.Horizontal)
-            .scrollBar(BarState.Off)
-            .width('100%')
-            .height(90)
-            .padding({ left: 15, right: 15 })
+            .listDirection(Axis.Horizontal).scrollBar(BarState.Off).width('100%').height(90).padding({ left: 15, right: 15 })
 
             Row() {
               Text('设备控制台').fontSize(16).fontWeight(FontWeight.Bold)
               Blank()
               Row({ space: 8 }) {
                 Text(this.isAutoMode ? '自动接管' : '手动干预').fontSize(14).fontColor(this.isAutoMode ? '#00B96B' : '#FF6B6B')
-                Toggle({ type: ToggleType.Switch, isOn: this.isAutoMode })
-                  .onChange((isOn) => this.isAutoMode = isOn)
+                Toggle({ type: ToggleType.Switch, isOn: this.isAutoMode }).onChange((isOn) => this.isAutoMode = isOn)
               }
             }.width('100%').padding({ left: 15, right: 15, top: 25, bottom: 10 })
 
@@ -321,104 +384,82 @@ export struct MonitorDetail {
         .width('100%').height('100%').backgroundColor('#F5F7FA')
         .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
 
-
-        // 右侧悬浮标签
-        if (this.isAutoMode && !this.isDrawerOpen) {
-          Row() {
-            Text('< 设置阈值').fontSize(12).fontColor(Color.White).fontWeight(FontWeight.Bold)
-          }
-          .backgroundColor('#00B96B')
-          .padding({ left: 12, right: 8, top: 12, bottom: 12 })
-          .borderRadius({ topLeft: 20, bottomLeft: 20 })
-          .position({ right: 0, top: '45%' })
-          .shadow({ radius: 6, color: '#4400B96B', offsetX: -2, offsetY: 2 })
-          .transition(TransitionEffect.OPACITY)
-          .onClick(() => {
-            animateTo({ duration: 350, curve: Curve.FastOutSlowIn }, () => {
-              this.isDrawerOpen = true;
-            })
-          })
+        // ================== 右侧抽屉标签 ==================
+        if (this.isAutoMode && !this.isDrawerOpen && !this.isFullScreen) {
+          Row() { Text('< 设置阈值').fontSize(12).fontColor(Color.White).fontWeight(FontWeight.Bold) }
+          .backgroundColor('#00B96B').padding({ left: 12, right: 8, top: 12, bottom: 12 }).borderRadius({ topLeft: 20, bottomLeft: 20 })
+          .position({ right: 0, top: '45%' }).shadow({ radius: 6, color: '#4400B96B', offsetX: -2, offsetY: 2 })
+          .onClick(() => { animateTo({ duration: 350, curve: Curve.FastOutSlowIn }, () => { this.isDrawerOpen = true; }) })
         }
 
-
-        // 侧边抽屉面板
-        if (this.isDrawerOpen) {
-
-
-          Row()
-            .width('100%')
-            .height('100%')
-            .backgroundColor('rgba(0,0,0,0.5)')
+        // ================== 侧边抽屉面板 ==================
+        if (this.isDrawerOpen && !this.isFullScreen) {
+          Row().width('100%').height('100%').backgroundColor('rgba(0,0,0,0.5)')
             .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
-            .transition(TransitionEffect.OPACITY)
-            .onClick(() => {
-              animateTo({ duration: 300, curve: Curve.EaseIn }, () => {
-                this.isDrawerOpen = false;
-              })
-            })
-            .zIndex(10)
+            .onClick(() => { animateTo({ duration: 300, curve: Curve.EaseIn }, () => { this.isDrawerOpen = false; }) }).zIndex(10)
 
-          // 抽屉面板内容
           Column() {
-            // 头部 (顶部间距加大到 50，避开状态栏)
             Row() {
               Text('自动触发阈值').fontSize(20).fontWeight(FontWeight.Bold)
               Blank()
               Text('完成').fontColor('#00B96B').fontSize(16).fontWeight(FontWeight.Medium)
-                .onClick(() => {
-                  animateTo({ duration: 300, curve: Curve.EaseIn }, () => {
-                    this.isDrawerOpen = false;
-                  })
-                })
+                .onClick(() => { animateTo({ duration: 300, curve: Curve.EaseIn }, () => { this.isDrawerOpen = false; }) })
             }.width('100%').padding({ top: 50, bottom: 20, left: 20, right: 20 })
 
-            // 滑块区
             Scroll() {
               Column({ space: 15 }) {
-                Column() {
-                  Row() { Text('🌱 土壤湿度下限').fontSize(14).fontWeight(FontWeight.Medium); Blank(); Text(`${this.thresholdSoil}`).fontColor('#00B96B').fontWeight(FontWeight.Bold) }.width('100%')
-                  Slider({ value: this.thresholdSoil, min: 0, max: 4095 }).selectedColor('#00B96B').onChange((v) => this.thresholdSoil = Math.round(v))
-                }.padding(15).backgroundColor(Color.White).borderRadius(12)
-
-                Column() {
-                  Row() { Text('💧 空气湿度下限').fontSize(14).fontWeight(FontWeight.Medium); Blank(); Text(`${this.thresholdHumi}%`).fontColor('#4DABF7').fontWeight(FontWeight.Bold) }.width('100%')
-                  Slider({ value: this.thresholdHumi, min: 0, max: 100 }).selectedColor('#4DABF7').onChange((v) => this.thresholdHumi = Math.round(v))
-                }.padding(15).backgroundColor(Color.White).borderRadius(12)
-
-                Column() {
-                  Row() { Text('☀️ 光照强度下限').fontSize(14).fontWeight(FontWeight.Medium); Blank(); Text(`${this.thresholdLight}Lx`).fontColor('#FCC419').fontWeight(FontWeight.Bold) }.width('100%')
-                  Slider({ value: this.thresholdLight, min: 0, max: 2000 }).selectedColor('#FCC419').onChange((v) => this.thresholdLight = Math.round(v))
-                }.padding(15).backgroundColor(Color.White).borderRadius(12)
-
-                Column() {
-                  Row() { Text('🌡️ 空气温度上限').fontSize(14).fontWeight(FontWeight.Medium); Blank(); Text(`${this.thresholdTemp}℃`).fontColor('#FF6B6B').fontWeight(FontWeight.Bold) }.width('100%')
-                  Slider({ value: this.thresholdTemp, min: 0, max: 50 }).selectedColor('#FF6B6B').onChange((v) => this.thresholdTemp = Math.round(v))
-                }.padding(15).backgroundColor(Color.White).borderRadius(12)
-
-                Column() {
-                  Row() { Text('💨 CO2浓度上限').fontSize(14).fontWeight(FontWeight.Medium); Blank(); Text(`${this.thresholdCO2}ppm`).fontColor('#A9A9A9').fontWeight(FontWeight.Bold) }.width('100%')
-                  Slider({ value: this.thresholdCO2, min: 0, max: 5000 }).selectedColor('#A9A9A9').onChange((v) => this.thresholdCO2 = Math.round(v))
-                }.padding(15).backgroundColor(Color.White).borderRadius(12)
+                Column() { Row() { Text('🌱 土壤湿度下限').fontSize(14).fontWeight(FontWeight.Medium); Blank(); Text(`${this.thresholdSoil}`).fontColor('#00B96B').fontWeight(FontWeight.Bold) }.width('100%'); Slider({ value: this.thresholdSoil, min: 0, max: 4095 }).selectedColor('#00B96B').onChange((v) => this.thresholdSoil = Math.round(v)) }.padding(15).backgroundColor(Color.White).borderRadius(12)
+                Column() { Row() { Text('💧 空气湿度下限').fontSize(14).fontWeight(FontWeight.Medium); Blank(); Text(`${this.thresholdHumi}%`).fontColor('#4DABF7').fontWeight(FontWeight.Bold) }.width('100%'); Slider({ value: this.thresholdHumi, min: 0, max: 100 }).selectedColor('#4DABF7').onChange((v) => this.thresholdHumi = Math.round(v)) }.padding(15).backgroundColor(Color.White).borderRadius(12)
+                Column() { Row() { Text('☀️ 光照强度下限').fontSize(14).fontWeight(FontWeight.Medium); Blank(); Text(`${this.thresholdLight}Lx`).fontColor('#FCC419').fontWeight(FontWeight.Bold) }.width('100%'); Slider({ value: this.thresholdLight, min: 0, max: 2000 }).selectedColor('#FCC419').onChange((v) => this.thresholdLight = Math.round(v)) }.padding(15).backgroundColor(Color.White).borderRadius(12)
+                Column() { Row() { Text('🌡️ 空气温度上限').fontSize(14).fontWeight(FontWeight.Medium); Blank(); Text(`${this.thresholdTemp}℃`).fontColor('#FF6B6B').fontWeight(FontWeight.Bold) }.width('100%'); Slider({ value: this.thresholdTemp, min: 0, max: 50 }).selectedColor('#FF6B6B').onChange((v) => this.thresholdTemp = Math.round(v)) }.padding(15).backgroundColor(Color.White).borderRadius(12)
+                Column() { Row() { Text('💨 CO2浓度上限').fontSize(14).fontWeight(FontWeight.Medium); Blank(); Text(`${this.thresholdCO2}ppm`).fontColor('#A9A9A9').fontWeight(FontWeight.Bold) }.width('100%'); Slider({ value: this.thresholdCO2, min: 0, max: 5000 }).selectedColor('#A9A9A9').onChange((v) => this.thresholdCO2 = Math.round(v)) }.padding(15).backgroundColor(Color.White).borderRadius(12)
               }.width('100%').padding({ left: 15, right: 15, bottom: 40 })
             }.scrollBar(BarState.Off).layoutWeight(1)
-
           }
-          .width('85%')
-          .height('100%')
-          .backgroundColor('#F5F7FA')
-          .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
-          .position({ right: 0, top: 0 })
-          .transition(TransitionEffect.move(TransitionEdge.END))
-          .zIndex(11)
-
+          .width('85%').height('100%').backgroundColor('#F5F7FA').expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
+          .position({ right: 0, top: 0 }).transition(TransitionEffect.move(TransitionEdge.END)).zIndex(11)
         }
 
-      }.width('100%').height('100%') // Stack 结束
+        // ================== 横向全屏视频覆盖层 ==================
+        if (this.isFullScreen) {
+          Stack() {
+            // 背景黑底，画面等比例居中
+            this.VideoContent()
+
+            // 退出全屏按钮 (左上角)
+            Row({ space: 6 }) {
+              Text('< 返回').fontSize(16).fontColor(Color.White).fontWeight(FontWeight.Bold)
+            }
+            .padding({ left: 15, right: 15, top: 10, bottom: 10 })
+            .backgroundColor('rgba(0,0,0,0.5)')
+            .borderRadius(8)
+            .position({ x: 20, y: 20 })
+            .onClick(() => {
+              this.toggleFullScreen(false);
+            })
+
+          }
+          .width('100%')
+          .height('100%')
+          .backgroundColor(Color.Black)
+          .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM]) // 充满整个屏幕
+          .zIndex(999) // 覆盖
+        }
+
+      }.width('100%').height('100%')
       .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
     }
     .hideTitleBar(true)
     .onReady((ctx) => {
       this.pathStack = ctx.pathStack;
+    })
+    // 监听返回键事件
+    .onBackPressed(() => {
+      if (this.isFullScreen) {
+        this.toggleFullScreen(false);
+        return true; // 拦截默认返回
+      }
+      return false; // 正常返回上一页
     })
   }
 }
