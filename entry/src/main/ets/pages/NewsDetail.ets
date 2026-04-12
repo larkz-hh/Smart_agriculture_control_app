@@ -27,7 +27,7 @@ export struct NewsDetail {
       .width('100%')
       .height('100%')
     }
-    .title('资讯详情')
+    .hideTitleBar(true)
     .onReady((context: NavDestinationContext) => {
       this.pathStack = context.pathStack;
       this.targetUrl = context.pathInfo.param as string;

@@ -7,6 +7,7 @@ import { webview } from '@kit.ArkWeb';
 
 
 @Component
+  //父->子
 struct HorizontalDataCard {
   @Prop title: string = '';
   @Prop value: string = '';
@@ -30,7 +31,7 @@ struct HorizontalDataCard {
     .borderRadius(12)
     .justifyContent(FlexAlign.Center)
     .shadow({ radius: 4, color: '#05000000', offsetY: 2 })
-    .opacity(this.isSystemOnline ? 1.0 : 0.4)
+    .opacity(this.isSystemOnline ? 1.0 : 0.4)//判断离线状态
   }
 }
 
@@ -49,7 +50,7 @@ struct DeviceControlItem {
     Column() {
       Row() {
         Text(`${this.icon} ${this.name}`).fontSize(16).fontWeight(FontWeight.Medium)
-
+        //掉线或关闭
         if (!this.isSystemOnline || this.statusStr === 'OFF') {
           Row({ space: 4 }) {
             Circle({ width: 6, height: 6 }).fill('#FF4D4F')
@@ -140,13 +141,17 @@ export function MonitorDetailBuilder(_name: string, param: Object) {
   MonitorDetail({ ghData: param as GreenhouseModel })
 }
 
+@Preview
 @Component
 export struct MonitorDetail {
   pathStack: NavPathStack = new NavPathStack();
   @State ghData: GreenhouseModel = new GreenhouseModel();
   @State editGhData: GreenhouseModel = new GreenhouseModel();
   controller: webview.WebviewController = new webview.WebviewController();
+  fsController: webview.WebviewController = new webview.WebviewController();
 
+
+  //抽屉打开
   @State isDrawerOpen: boolean = false;
   // 全屏状态标志
   @State isFullScreen: boolean = false;
@@ -194,24 +199,93 @@ export struct MonitorDetail {
   @State thresholdTemp: number = 32;
   @State thresholdHumi: number = 45;
   @State thresholdCO2: number = 1000;
+  @State isPlaying: boolean = false;
+
+  forceVideoStyle(ctrl: webview.WebviewController) {
+    let js = `
+      var img = document.querySelector('img');
+      // 如果找到了视频画面，并且还没被处理过
+      if (img && img.getAttribute('data-styled') !== 'yes') {
+        // 强制把底色涂成纯黑，强制填满，干掉滚动条
+        document.body.style.cssText = 'margin:0!important; padding:0!important; background-color:#000000!important; width:100vw!important; height:100vh!important; overflow:hidden!important; display:flex!important; justify-content:center!important; align-items:center!important;';
+        // 强制画面按比例拉满整个屏幕
+        img.style.cssText = 'width:100%!important; height:100%!important; object-fit:contain!important; margin:0!important; padding:0!important; max-width:none!important; max-height:none!important;';
+        // 打上标记，以后不用再处理了
+        img.setAttribute('data-styled', 'yes');
+      }
+    `;
+    try { ctrl.runJavaScript(js); } catch(e){}
+  }
+  // 定义定时器
+  @State styleTimer: number = -1;
 
   aboutToAppear() {
     this.fetchShadowData();
+    //  开启巡逻：每 500 毫秒去检查一次，视频出来，刻碾碎灰边拉满
+    this.styleTimer = setInterval(() => {
+      this.forceVideoStyle(this.controller);
+      if (this.isFullScreen) {
+        this.forceVideoStyle(this.fsController);
+      }
+    }, 500);
   }
 
+  aboutToDisappear() {
+    clearInterval(this.styleTimer); // 销毁定时器
+    try {
+      this.controller.loadUrl('about:blank');
+      this.fsController.loadUrl('about:blank');
+    } catch (e) {}
+  }
+
+  //横竖屏切换
+  // 延迟
   // 横竖屏切换
   async toggleFullScreen(isFull: boolean) {
-    this.isFullScreen = isFull;
     try {
-      let win = await window.getLastWindow(getContext(this));
       if (isFull) {
-        // 强制横屏，并隐藏状态栏导航栏
-        await win.setPreferredOrientation(window.Orientation.LANDSCAPE);
-        await win.setWindowSystemBarEnable([]);
+        //  强行掐断小窗口
+        try {
+          this.controller.stop();
+          this.controller.loadUrl('about:blank');
+        } catch(e) {}
+
+        // 2延迟放大全屏
+        setTimeout(async () => {
+          this.isFullScreen = true;
+          let win = await window.getLastWindow(getContext(this));
+          await win.setPreferredOrientation(window.Orientation.LANDSCAPE);
+          await win.setWindowSystemBarEnable([]);
+
+          //  仅在播放状态下，才让全屏窗口去拉取视频流
+          setTimeout(() => {
+            if (this.ghData.camUrl && this.isPlaying) {
+              try { this.fsController.loadUrl(this.ghData.camUrl); } catch(e) {}
+            }
+          }, 100);
+        }, 300);
+
       } else {
-        // 恢复竖屏，显示状态栏
-        await win.setPreferredOrientation(window.Orientation.PORTRAIT);
-        await win.setWindowSystemBarEnable(['status', 'navigation']);
+        //  强行掐断全屏窗口
+        try {
+          this.fsController.stop();
+          this.fsController.loadUrl('about:blank');
+        } catch(e) {}
+
+        // 2. 延迟恢复小窗口
+        setTimeout(async () => {
+          this.isFullScreen = false;
+          let win = await window.getLastWindow(getContext(this));
+          await win.setPreferredOrientation(window.Orientation.PORTRAIT);
+          await win.setWindowSystemBarEnable(['status', 'navigation']);
+
+          //  仅在播放状态下，重新让小窗加载视频地址
+          setTimeout(() => {
+            if (this.ghData.camUrl && this.isPlaying) {
+              try { this.controller.loadUrl(this.ghData.camUrl); } catch(e) {}
+            }
+          }, 300);
+        }, 300);
       }
     } catch (err) {
       console.error('切换横竖屏失败', JSON.stringify(err));
@@ -224,7 +298,7 @@ export struct MonitorDetail {
     try {
       let res = await IotService.getDeviceShadow(this.ghData.deviceId);
       if (res.code === 200 && res.data) {
-        this.isSystemOnline = true;
+        this.isSystemOnline = true;//在线
         this.airTemp = res.data.Temperature.toString();
         this.airHum = res.data.Humidity.toString();
         this.lightLux = res.data.Light.toString();
@@ -262,20 +336,62 @@ export struct MonitorDetail {
     }
   }
 
-  //  提取出视频画面内容（复用）
-  @Builder VideoContent() {
+  //  提取出视频画面内容（终极障眼法版本）
+  @Builder VideoContent(ctrl: webview.WebviewController) {
     if (this.ghData.camUrl) {
-      // 填入视频流地址
-      Web({ src: this.ghData.camUrl, controller: this.controller })
-        .width('100%')
-        .height('100%')
-        .backgroundColor(Color.Black)
-        // 允许各种网页能力，保证视频流顺畅
-        .javaScriptAccess(true)
-        .domStorageAccess(true)
-        .mediaPlayGestureAccess(false) // 允许自动播放
+      Stack() {
+        //  底部：只提供容器。由于绑定的 src 是根据 isPlaying 动态变的，不播放时不发请求！
+        Web({ src: this.isPlaying ? this.ghData.camUrl : 'about:blank', controller: ctrl })
+          .width('100%')
+          .height('100%')
+          .backgroundColor(Color.Black)
+          .javaScriptAccess(true)
+          .domStorageAccess(true)
+          .mediaPlayGestureAccess(false)
+          .verticalScrollBarAccess(false)
+          .horizontalScrollBarAccess(false)
+
+        // 中层：透明遮罩，点击暂停
+        if (this.isPlaying) {
+          Rect().width('100%').height('100%').fill(Color.Transparent)
+            .onClick(() => {
+              this.isPlaying = false; // 切换为暂停状态
+              try {
+                // ：强制中止内核当前所有的网络请求
+                ctrl.stop();
+                //  跳转到空白页，彻底释放 ESP32 的 Socket 连接！
+                ctrl.loadUrl('about:blank');
+              } catch (e) {}
+            })
+        }
+
+        // 暂停状态下的黑布和播放按钮
+        if (!this.isPlaying) {
+          Stack() {
+            // 纯黑底色覆盖
+            Rect().width('100%').height('100%').fill(Color.Black)
+
+            // 绘制播放按钮
+            Stack() {
+              Circle({ width: 64, height: 64 }).fill('rgba(255,255,255,0.2)')
+              Circle({ width: 50, height: 50 }).fill('rgba(0,0,0,0.6)')
+              Image($r('app.media.pause_icon')) // 替换为你创建的 svg 文件名
+                .width(28)
+                .height(28)
+                .margin({ left: 4 })
+            }
+          }
+          .width('100%')
+          .height('100%')
+          .onClick(() => {
+            this.isPlaying = true; // 切换为播放状态
+            try {
+              ctrl.loadUrl(this.ghData.camUrl); // 重新开始请求视频流
+            } catch (e) {}
+          })
+        }
+      }
     } else {
-      // 没有视频流时显示默认图片
       Image($r('app.media.app_icon'))
         .width('100%')
         .height('100%')
@@ -320,7 +436,13 @@ export struct MonitorDetail {
 
             // 正常状态下的视频窗口
             Stack() {
-              this.VideoContent()
+              if (!this.isFullScreen) {
+                this.VideoContent(this.controller)
+              } else {
+                // 全屏时，小窗口变成纯黑占位，防止页面布局塌陷变形
+                Rect().width('100%').height('100%').fill(Color.Black)
+              }
+
 
               Row({ space: 6 }) {
                 Circle({ width: 8, height: 8 }).fill('#FF4D4F')
@@ -346,7 +468,7 @@ export struct MonitorDetail {
             List({ space: 12 }) {
               ListItem() { HorizontalDataCard({ title: '空气温度', value: this.airTemp, unit: '℃', colorCode: '#FF6B6B', isSystemOnline: this.isSystemOnline }) }
               ListItem() { HorizontalDataCard({ title: '空气湿度', value: this.airHum, unit: '%', colorCode: '#4DABF7', isSystemOnline: this.isSystemOnline }) }
-              ListItem() { HorizontalDataCard({ title: '土壤湿度', value: this.soilHum, unit: '', colorCode: '#8CE200', isSystemOnline: this.isSystemOnline }) }
+              ListItem() { HorizontalDataCard({ title: '土壤湿度', value: this.soilHum, unit: '%', colorCode: '#8CE200', isSystemOnline: this.isSystemOnline }) }
               ListItem() { HorizontalDataCard({ title: '光照强度', value: this.lightLux, unit: 'Lx', colorCode: '#FCC419', isSystemOnline: this.isSystemOnline }) }
               ListItem() { HorizontalDataCard({ title: 'CO2浓度', value: this.co2, unit: 'ppm', colorCode: '#A9A9A9', isSystemOnline: this.isSystemOnline }) }
             }
@@ -424,7 +546,7 @@ export struct MonitorDetail {
         if (this.isFullScreen) {
           Stack() {
             // 背景黑底，画面等比例居中
-            this.VideoContent()
+            this.VideoContent(this.fsController)
 
             // 退出全屏按钮 (左上角)
             Row({ space: 6 }) {

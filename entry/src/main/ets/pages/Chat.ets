@@ -341,7 +341,7 @@ export struct Chat {
         }, (item: MessageModel) => item.id) //使用唯一的 UUID 作为渲染 Key
       }
       .layoutWeight(1).width('100%').backgroundColor('#F0F2F5').edgeEffect(EdgeEffect.Spring)
-
+      .scrollBar(BarState.Off)
       // 在输入框上方显示图片预览图
       if (this.selectedImageUri) {
         Row() {
@@ -435,3 +435,53 @@ export struct Chat {
     })
   }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
