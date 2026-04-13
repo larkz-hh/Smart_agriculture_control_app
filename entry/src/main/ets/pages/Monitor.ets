@@ -1,6 +1,8 @@
 import { DatabaseManager } from '../data/DatabaseManager';
 import { GreenhouseModel } from '../model/GreenhouseModel';
 import { promptAction } from '@kit.ArkUI';
+import { common } from '@kit.AbilityKit';
+import { ImageUtil } from '../utils/ImageUtil';
 
 @CustomDialog
 struct GreenhouseDialog {
@@ -8,9 +10,31 @@ struct GreenhouseDialog {
   @Link ghData: GreenhouseModel;
   confirmAction: () => void = () => {}
 
+  async selectCoverImage() {
+    let context = getContext(this) as common.UIAbilityContext;
+    let uri = await ImageUtil.pickPhotoFromGallery(context);
+    if (uri) {
+      this.ghData.coverImage = uri;
+    }
+  }
+
   build() {
     Column({ space: 15 }) {
       Text(this.ghData.id ? '编辑大棚' : '新增大棚').fontSize(20).fontWeight(FontWeight.Bold)
+
+      //封面图片选择区
+      Column({ space: 8 }) {
+        Image(this.ghData.coverImage ? this.ghData.coverImage : $r('app.media.app_icon'))
+          .width('100%')
+          .height(130)
+          .borderRadius(8)
+          .objectFit(ImageFit.Cover)
+          .backgroundColor('#F0F0F0')
+          .onClick(() => this.selectCoverImage())
+
+        Text('点击设置大棚封面').fontSize(12).fontColor('#999')
+      }.width('100%').alignItems(HorizontalAlign.Center).margin({ bottom: 5 })
+
 
       TextInput({ placeholder: '大棚名称 (必填)', text: this.ghData.name })
         .onChange((val) => this.ghData.name = val)
@@ -18,7 +42,8 @@ struct GreenhouseDialog {
         .onChange((val) => this.ghData.deviceId = val)
       TextInput({ placeholder: '种植作物 (可选)', text: this.ghData.crop })
         .onChange((val) => this.ghData.crop = val)
-      //阶段选择
+
+      // 阶段选择
       Row() {
         Text('生长阶段(可选)：').fontSize(14).fontColor('#666')
         Select([{value:'未设置'}, {value:'育苗'}, {value:'生长'}, {value:'开花'}, {value:'结果'}])
@@ -96,6 +121,7 @@ export struct Monitor {
           editGh.deviceId = item.deviceId;
           editGh.crop = item.crop;
           editGh.stage = item.stage;
+          editGh.coverImage = item.coverImage;
 
           this.currentGh = editGh;
           this.dialogController.open();
@@ -113,7 +139,8 @@ export struct Monitor {
 
   @Builder GhCard(item: GreenhouseModel) {
     Column() {
-      Image($r('app.media.app_icon'))
+      //如果有封面图就展示封面图，否则展示默认图标
+      Image(item.coverImage ? item.coverImage : $r('app.media.app_icon'))
         .width('100%').height(100).objectFit(ImageFit.Cover)
         .backgroundColor('#E8F5E9')
 
@@ -165,33 +192,59 @@ export struct Monitor {
         .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
 
       Row() {
-        Column({ space: 8 }) {
+
+        Column({ space: 12 }) {
           Text('大棚管理')
-            .fontSize(28)
-            .fontWeight(FontWeight.Bold)
+            .fontSize(30)
+            .fontWeight(FontWeight.Bolder)
             .fontColor(Color.White)
             .letterSpacing(1)
 
-          Text(`当前已接入 ${this.ghList.length} 个智能大棚节点`)
-            .fontSize(14)
-            .fontColor('rgba(255, 255, 255, 0.85)')
 
+          Column({ space: 6 }) {
+            Row() {
+              Text('当前已接入')
+                .fontSize(14)
+                .fontColor('rgba(255, 255, 255, 0.85)')
+                .margin({ bottom: 6 })
+
+              Text(`${this.ghList.length}`)
+                .fontSize(38)
+                .fontWeight(FontWeight.Bolder)
+                .fontColor(Color.White)
+                .lineHeight(38)
+                .margin({ left: 8, right: 6 })
+
+              Text('个')
+                .fontSize(14)
+                .fontColor('rgba(255, 255, 255, 0.85)')
+                .margin({ bottom: 6 })
+            }.alignItems(VerticalAlign.Bottom)
+
+            Row({ space: 6 }) {
+              Circle({ width: 6, height: 6 }).fill('#FFD700')
+              Text('智慧大棚节点')
+                .fontSize(12)
+                .fontColor('rgba(255, 255, 255, 0.9)')
+            }
+            .backgroundColor('rgba(255, 255, 255, 0.2)')
+            .padding({ left: 8, right: 10, top: 4, bottom: 4 })
+            .borderRadius(10)
+
+          }.alignItems(HorizontalAlign.Start)
 
         }
         .alignItems(HorizontalAlign.Start)
         .layoutWeight(1)
         Blank()
-        Blank()
-
-
         Image($r('app.media.greenhouse2'))
-          .width(140)
-          .height(120)
-
-         // .opacity(0.2)
+          .width(170)
+          .height(125)
+          .objectFit(ImageFit.Contain)
+          .margin({ left: 10 })
       }
       .width('100%')
-      .padding({ left: 25, right: 25, bottom: 100 })
+      .padding({ left: 25, right: 20, bottom: 95 })
     }
     .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
     .width('100%')
@@ -200,13 +253,14 @@ export struct Monitor {
   build() {
     Stack({ alignContent: Alignment.BottomEnd }) {
       // 全局透明水印底图
-      Image($r('app.media.greenhouse'))
-        .width('120%')
-        .opacity(0.05)
+      Image($r('app.media.farm'))
+        .width('110%')
+        .height('56%')
+        .opacity(0.1)
         .position({ x: '-10%', y: '50%' })
 
       Column() {
-        // 顶部渐变看板
+        // 顶部看板
         this.HeaderDashboard()
 
         if (this.ghList.length === 0) {
@@ -239,8 +293,8 @@ export struct Monitor {
           .columnsGap(15).rowsGap(15)
           .padding({ left: 15, right: 15, bottom: 100 })
           .width('100%').layoutWeight(1)
-          .margin({ top: -45 })
-          .scrollBar(BarState.Off)
+          .margin({ top: -60 })
+          .scrollBar(BarState.Off)//
         }
       }.width('100%').height('100%')
 

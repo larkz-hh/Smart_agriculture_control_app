@@ -4,9 +4,6 @@ import { MessageModel, SessionItem } from '../model/MessageModel';
 import { PlantRecord, RecordGroup } from '../model/RecordModel';
 import { GreenhouseModel } from '../model/GreenhouseModel';
 
-
-
-
 export class DatabaseManager {
   private static rdbStore: relationalStore.RdbStore | null = null;
 
@@ -16,13 +13,15 @@ export class DatabaseManager {
       name: 'AgriChat.db',
       securityLevel: relationalStore.SecurityLevel.S1
     };
+    // 🌟 在建表语句中加入 coverImage
     const createGreenhouseTable = `CREATE TABLE IF NOT EXISTS Greenhouse (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT,
       deviceId TEXT,
       crop TEXT,
       stage INTEGER,
-      camUrl TEXT
+      camUrl TEXT,
+      coverImage TEXT
     )`;
 
     const createSessionTable = `CREATE TABLE IF NOT EXISTS Session (
@@ -54,6 +53,12 @@ export class DatabaseManager {
     try {
       DatabaseManager.rdbStore = await relationalStore.getRdbStore(context, config);
       await DatabaseManager.rdbStore.executeSql(createGreenhouseTable);
+
+      // 🌟 兼容老数据：尝试为已存在的旧表添加 coverImage 字段（如果报错说明已存在，直接忽略）
+      try {
+        await DatabaseManager.rdbStore.executeSql('ALTER TABLE Greenhouse ADD COLUMN coverImage TEXT');
+      } catch (e) {}
+
       await DatabaseManager.rdbStore.executeSql(createSessionTable);
       await DatabaseManager.rdbStore.executeSql(createMessageTable);
       await DatabaseManager.rdbStore.executeSql(createRecordGroupTable);
@@ -262,47 +267,58 @@ export class DatabaseManager {
       console.error('删除分组及其记录失败:', JSON.stringify(e));
     }
   }
-  // 新增大棚
+
+  // 🌟 修改：插入包含封面图片的数据
   static async insertGreenhouse(gh: GreenhouseModel): Promise<number> {
     if (!DatabaseManager.rdbStore) return -1;
     let bucket: relationalStore.ValuesBucket = {
-      name: gh.name, deviceId: gh.deviceId, crop: gh.crop, stage: gh.stage,camUrl: gh.camUrl || ''
+      name: gh.name,
+      deviceId: gh.deviceId,
+      crop: gh.crop,
+      stage: gh.stage,
+      camUrl: gh.camUrl || '',
+      coverImage: gh.coverImage || '' // 新增
     };
     return await DatabaseManager.rdbStore.insert('Greenhouse', bucket);
   }
 
-  //查询所有大棚
+  // 🌟 修改：查询数据时带上封面图片
   static async getGreenhouseList(): Promise<GreenhouseModel[]> {
     if (!DatabaseManager.rdbStore) return [];
     let predicates = new relationalStore.RdbPredicates('Greenhouse');
     let rs = await DatabaseManager.rdbStore.query(predicates);
     let list: GreenhouseModel[] = [];
     while (rs.goToNextRow()) {
-      list.push({
-        id: rs.getLong(rs.getColumnIndex('id')),
-        name: rs.getString(rs.getColumnIndex('name')),
-        deviceId: rs.getString(rs.getColumnIndex('deviceId')),
-        crop: rs.getString(rs.getColumnIndex('crop')),
-        stage: rs.getLong(rs.getColumnIndex('stage')),
-        camUrl: rs.getString(rs.getColumnIndex('camUrl'))
-      });
+      let gh = new GreenhouseModel();
+      gh.id = rs.getLong(rs.getColumnIndex('id'));
+      gh.name = rs.getString(rs.getColumnIndex('name'));
+      gh.deviceId = rs.getString(rs.getColumnIndex('deviceId'));
+      gh.crop = rs.getString(rs.getColumnIndex('crop'));
+      gh.stage = rs.getLong(rs.getColumnIndex('stage'));
+      gh.camUrl = rs.getString(rs.getColumnIndex('camUrl'));
+      gh.coverImage = rs.getString(rs.getColumnIndex('coverImage')); // 新增
+      list.push(gh);
     }
     rs.close();
     return list;
   }
 
-  // 更新大棚信息
+  // 🌟 修改：更新数据时带上封面图片
   static async updateGreenhouse(gh: GreenhouseModel) {
     if (!DatabaseManager.rdbStore || !gh.id) return;
     let bucket: relationalStore.ValuesBucket = {
-      name: gh.name, deviceId: gh.deviceId, crop: gh.crop, stage: gh.stage,camUrl: gh.camUrl || ''
+      name: gh.name,
+      deviceId: gh.deviceId,
+      crop: gh.crop,
+      stage: gh.stage,
+      camUrl: gh.camUrl || '',
+      coverImage: gh.coverImage || '' // 新增
     };
     let predicates = new relationalStore.RdbPredicates('Greenhouse');
     predicates.equalTo('id', gh.id);
     await DatabaseManager.rdbStore.update(bucket, predicates);
   }
 
-  //删除大棚
   static async deleteGreenhouse(id: number) {
     if (!DatabaseManager.rdbStore) return;
     let predicates = new relationalStore.RdbPredicates('Greenhouse');
