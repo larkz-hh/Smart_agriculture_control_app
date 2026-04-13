@@ -96,7 +96,6 @@ export struct Mine {
     .height(60)
     .padding({ left: 15, right: 15 })
     .onClick(() => {
-      //后期跳转逻辑
       if (item.text === '退出登录') {
         if (!this.isLoggedIn) {
           promptAction.showToast({ message: '您还没有登录哦' });
@@ -104,10 +103,19 @@ export struct Mine {
         }
         AppStorage.setOrCreate('isLoggedIn', false);
         promptAction.showToast({ message: '已退出登录' });
+      } else if (item.text === '关于') {
+        // 跳转到关于页面
+        if (this.pathStack) {
+          this.pathStack.pushPathByName('About', null);
+        }
+      } else if (item.text === '客服') {
+        // 跳转到客服页面
+        if (this.pathStack) {
+          this.pathStack.pushPathByName('CustomerService', null);
+        }
       } else {
-        console.info(`点击了: ${item.text}`);
+        promptAction.showToast({ message: '功能开发中...' });
       }
-      console.info(`点击了: ${item.text}`)
     })
   }
 

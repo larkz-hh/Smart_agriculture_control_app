@@ -54,6 +54,16 @@
       "name": "MonitorDetail",
       "pageSourceFile": "src/main/ets/pages/MonitorDetail.ets",
       "buildFunction": "MonitorDetailBuilder"
+    },
+    {
+      "name": "About",
+      "pageSourceFile": "src/main/ets/pages/About.ets",
+      "buildFunction": "AboutBuilder"
+    },
+    {
+      "name": "CustomerService",
+      "pageSourceFile": "src/main/ets/pages/CustomerService.ets",
+      "buildFunction": "CustomerServiceBuilder"
     }
   ]
 }
