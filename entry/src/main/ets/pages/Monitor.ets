@@ -18,9 +18,9 @@ struct GreenhouseDialog {
         .onChange((val) => this.ghData.deviceId = val)
       TextInput({ placeholder: '种植作物 (可选)', text: this.ghData.crop })
         .onChange((val) => this.ghData.crop = val)
-
+      //阶段选择
       Row() {
-        Text('生长阶段(选填)：').fontSize(14).fontColor('#666')
+        Text('生长阶段(可选)：').fontSize(14).fontColor('#666')
         Select([{value:'未设置'}, {value:'育苗'}, {value:'生长'}, {value:'开花'}, {value:'结果'}])
           .selected(this.ghData.stage === -1 ? 0 : this.ghData.stage + 1)
           .value(['未设置', '育苗', '生长', '开花', '结果'][this.ghData.stage === -1 ? 0 : this.ghData.stage + 1])
@@ -29,10 +29,11 @@ struct GreenhouseDialog {
           })
       }.width('100%').justifyContent(FlexAlign.Start)
 
+
       Row({ space: 15 }) {
         Button('取消').layoutWeight(1).backgroundColor('#EEE').fontColor('#666')
           .onClick(() => this.controller?.close())
-
+        //保存逻辑判断
         Button('保存').layoutWeight(1).backgroundColor('#00B96B')
           .onClick(() => {
             if (!this.ghData.name || this.ghData.name.trim() === '') {
@@ -74,7 +75,7 @@ export struct Monitor {
     }),
     alignment: DialogAlignment.Center
   })
-
+  //加载列表数据
   aboutToAppear() {
     this.loadData();
   }
@@ -151,24 +152,72 @@ export struct Monitor {
     .bindContextMenu(this.GhMenuBuilder(item), ResponseType.LongPress)
   }
 
+
+  //顶部背景区
+  @Builder HeaderDashboard() {
+    Stack({ alignContent: Alignment.BottomEnd }) {
+      Column()
+        .width('100%')
+        .height(220)
+        .backgroundColor('#28C76F')
+        .borderRadius({ bottomLeft: 30, bottomRight: 30 })
+        .shadow({ radius: 10, color: '#2000B96B', offsetY: 4 })
+        .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
+
+      Row() {
+        Column({ space: 8 }) {
+          Text('大棚管理')
+            .fontSize(28)
+            .fontWeight(FontWeight.Bold)
+            .fontColor(Color.White)
+            .letterSpacing(1)
+
+          Text(`当前已接入 ${this.ghList.length} 个智能大棚节点`)
+            .fontSize(14)
+            .fontColor('rgba(255, 255, 255, 0.85)')
+
+
+        }
+        .alignItems(HorizontalAlign.Start)
+        .layoutWeight(1)
+        Blank()
+        Blank()
+
+
+        Image($r('app.media.greenhouse2'))
+          .width(140)
+          .height(120)
+
+         // .opacity(0.2)
+      }
+      .width('100%')
+      .padding({ left: 25, right: 25, bottom: 100 })
+    }
+    .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
+    .width('100%')
+  }
+
   build() {
     Stack({ alignContent: Alignment.BottomEnd }) {
-      Column() {
-        // 顶部标题
-        Row() {
-          Text('大棚管理').fontSize(22).fontWeight(FontWeight.Bold).fontColor('#1A1A1A')
-        }.width('100%').padding(15)
+      // 全局透明水印底图
+      Image($r('app.media.greenhouse'))
+        .width('120%')
+        .opacity(0.05)
+        .position({ x: '-10%', y: '50%' })
 
+      Column() {
+        // 顶部渐变看板
+        this.HeaderDashboard()
 
         if (this.ghList.length === 0) {
-          // 如果列表长度为 0，展示插画
+          // 为空时的状态页
           Column({ space: 15 }) {
             Image($r('app.media.app_icon'))
-              .width(150)
-              .height(150)
-              .opacity(0.6)
+              .opacity(0.2)
+              .width(130)
+              .height(130)
 
-            Text('您还没有创建任何大棚\n点击右下角按钮开始添加吧')
+            Text('暂无大棚数据\n点击右下角立刻添加')
               .fontSize(15)
               .fontColor('#999')
               .textAlign(TextAlign.Center)
@@ -176,9 +225,11 @@ export struct Monitor {
           }
           .width('100%')
           .layoutWeight(1)
-          .justifyContent(FlexAlign.Center) // 垂直居中
+          .justifyContent(FlexAlign.Center)
+          .margin({ top: -50 })
 
         } else {
+          // 列表区
           Grid() {
             ForEach(this.ghList, (item: GreenhouseModel) => {
               GridItem() { this.GhCard(item) }
@@ -186,10 +237,11 @@ export struct Monitor {
           }
           .columnsTemplate('1fr 1fr')
           .columnsGap(15).rowsGap(15)
-          .padding({ left: 15, right: 15, bottom: 80 })
+          .padding({ left: 15, right: 15, bottom: 100 })
           .width('100%').layoutWeight(1)
+          .margin({ top: -45 })
+          .scrollBar(BarState.Off)
         }
-
       }.width('100%').height('100%')
 
       // 悬浮添加按钮
@@ -198,7 +250,7 @@ export struct Monitor {
           .width(28).height(28).fillColor(Color.White)
       }
       .width(60).height(60).backgroundColor('#00B96B')
-      .shadow({ radius: 8, color: '#4000B96B', offsetY: 4 })
+      .shadow({ radius: 10, color: '#5000B96B', offsetY: 6 })
       .margin({ right: 20, bottom: 20 })
       .onClick(() => {
         this.currentGh = new GreenhouseModel();
