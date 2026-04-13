@@ -5,6 +5,19 @@ import { DatabaseManager } from '../data/DatabaseManager';
 import window from '@ohos.window';
 import { webview } from '@kit.ArkWeb';
 
+export class CmdStage { Stage: string = '0'; }
+export class CmdMode { Mode: string = ''; }//模式切换
+export class CmdPump { Pump: string = ''; }//水泵
+export class CmdLed { Led: string = ''; }//光照
+export class CmdFan { Fan: string = ''; }//风扇
+export class CmdHumidifier { Humidifier: string = ''; }//加湿器
+export class CmdThreshold {
+  temp: number = 0;
+  humi: number = 0;
+  light: number = 0;
+  soil: number = 0;
+  co2: number = 0;
+}//阈值
 
 @Component
   //父->子
@@ -14,8 +27,6 @@ struct HorizontalDataCard {
   @Prop unit: string = '';
   @Prop colorCode: string = '';
   @Prop isSystemOnline: boolean = false;
-
-
 
   build() {
     Column() {
@@ -50,8 +61,8 @@ struct DeviceControlItem {
     Column() {
       Row() {
         Text(`${this.icon} ${this.name}`).fontSize(16).fontWeight(FontWeight.Medium)
-        //掉线或关闭
-        if (!this.isSystemOnline || this.statusStr === 'OFF') {
+        // 只在真正掉线时才显示“不在线”提示，不影响状态为 OFF 的情况
+        if (!this.isSystemOnline) {
           Row({ space: 4 }) {
             Circle({ width: 6, height: 6 }).fill('#FF4D4F')
             Text('不在线').fontSize(12).fontColor('#FF4D4F')
@@ -65,7 +76,8 @@ struct DeviceControlItem {
         }
         Toggle({ type: ToggleType.Switch, isOn: this.isOn })
           .selectedColor('#00B96B')
-          .enabled(!this.isAuto && this.isSystemOnline && this.statusStr !== 'OFF')
+          // 设备离线，只要不是自动模式，用户就可以点击下发指令
+          .enabled(!this.isAuto)
           .onChange((val: boolean) => {
             this.onChangeCb(val);
           })
@@ -160,11 +172,22 @@ export struct MonitorDetail {
     builder: EditGreenhouseDialog({
       ghData: $editGhData,
       confirmAction: () => {
+        // 判断阶段是否改变
+        let isStageChanged = (this.ghData.stage !== this.editGhData.stage);
+
         this.ghData.name = this.editGhData.name;
         this.ghData.deviceId = this.editGhData.deviceId;
         this.ghData.crop = this.editGhData.crop;
         this.ghData.stage = this.editGhData.stage;
-        this.ghData.camUrl = this.editGhData.camUrl; // 保存视频流地址
+        this.ghData.camUrl = this.editGhData.camUrl;
+
+        // 如果修改了生长阶段（且不是-1未设置），实例化类再传给参数
+        if (isStageChanged && this.ghData.stage >= 0) {
+          let stageCmd = new CmdStage();
+          // 把数字 0,1,2,3 变成字符串 "0","1","2","3"
+          stageCmd.Stage = this.ghData.stage.toString();
+          this.sendDeviceCmd('Agriculture_Control_Stage', stageCmd);
+        }
 
         DatabaseManager.updateGreenhouse(this.ghData).then(() => {
           promptAction.showToast({ message: '修改成功' });
@@ -189,10 +212,12 @@ export struct MonitorDetail {
   @State pumpOpen: boolean = false;
   @State ledOpen: boolean = false;
   @State fanOpen: boolean = false;
+  @State humidifierOpen: boolean = false;
 
   @State pumpStatusStr: string = 'OFF';
   @State fanStatusStr: string = 'OFF';
   @State ledStatusStr: string = 'OFF';
+  @State humidifierStatusStr:string='OFF';
 
   @State thresholdSoil: number = 20;
   @State thresholdLight: number = 500;
@@ -200,6 +225,33 @@ export struct MonitorDetail {
   @State thresholdHumi: number = 45;
   @State thresholdCO2: number = 1000;
   @State isPlaying: boolean = false;
+
+
+  sendDeviceCmd(commandName: string, paras: Object) {
+    // 允许离线状态下强行下发命令！
+    if (!this.ghData.deviceId) {
+      return;
+    }
+    // 不用 await，立刻结束，不阻塞 UI
+    IotService.sendCommand(this.ghData.deviceId, commandName, paras).then(success => {
+      if (!success) {
+        promptAction.showToast({ message: `${commandName} 指令执行异常，请检查设备。` });
+      }
+    });
+  }
+
+  // 侧边栏保存阈值并发送的方法
+  saveAndSendThresholds() {
+    animateTo({ duration: 300, curve: Curve.EaseIn }, () => { this.isDrawerOpen = false; });
+
+    let thresholdCmd = new CmdThreshold();
+    thresholdCmd.temp = this.thresholdTemp;
+    thresholdCmd.humi = this.thresholdHumi;
+    thresholdCmd.light = this.thresholdLight;
+    thresholdCmd.soil = this.thresholdSoil;
+    thresholdCmd.co2 = this.thresholdCO2;
+    this.sendDeviceCmd('Agriculture_Set_Threshold', thresholdCmd);
+  }
 
   forceVideoStyle(ctrl: webview.WebviewController) {
     let js = `
@@ -223,6 +275,7 @@ export struct MonitorDetail {
     this.fetchShadowData();
     //  开启巡逻：每 500 毫秒去检查一次，视频出来，刻碾碎灰边拉满
     this.styleTimer = setInterval(() => {
+      if (!this.isPlaying) return;
       this.forceVideoStyle(this.controller);
       if (this.isFullScreen) {
         this.forceVideoStyle(this.fsController);
@@ -239,8 +292,6 @@ export struct MonitorDetail {
   }
 
   //横竖屏切换
-  // 延迟
-  // 横竖屏切换
   async toggleFullScreen(isFull: boolean) {
     try {
       if (isFull) {
@@ -272,7 +323,7 @@ export struct MonitorDetail {
           this.fsController.loadUrl('about:blank');
         } catch(e) {}
 
-        // 2. 延迟恢复小窗口
+        //  延迟恢复小窗口
         setTimeout(async () => {
           this.isFullScreen = false;
           let win = await window.getLastWindow(getContext(this));
@@ -314,10 +365,12 @@ export struct MonitorDetail {
         this.pumpStatusStr = res.data.PumpStatus;
         this.fanStatusStr = res.data.FanStatus;
         this.ledStatusStr = res.data.LedStatus;
+        this.humidifierStatusStr=res.data.HumidifierStatus;
 
         this.pumpOpen = res.data.PumpStatus === 'ON';
         this.fanOpen = res.data.FanStatus === 'ON';
         this.ledOpen = res.data.LedStatus === 'ON';
+        this.humidifierOpen=res.data.HumidifierStatus==='ON';
 
         this.isAutoMode = res.data.Mode === 'auto';
       } else {
@@ -330,17 +383,18 @@ export struct MonitorDetail {
         this.pumpStatusStr = 'OFF';
         this.fanStatusStr = 'OFF';
         this.ledStatusStr = 'OFF';
+        this.humidifierStatusStr='OFF'
       }
     } catch (e) {
       console.error("请求异常：", JSON.stringify(e));
     }
   }
 
-  //  提取出视频画面内容（终极障眼法版本）
+  //  提取出视频画面内容
   @Builder VideoContent(ctrl: webview.WebviewController) {
     if (this.ghData.camUrl) {
       Stack() {
-        //  底部：只提供容器。由于绑定的 src 是根据 isPlaying 动态变的，不播放时不发请求！
+
         Web({ src: this.isPlaying ? this.ghData.camUrl : 'about:blank', controller: ctrl })
           .width('100%')
           .height('100%')
@@ -357,7 +411,7 @@ export struct MonitorDetail {
             .onClick(() => {
               this.isPlaying = false; // 切换为暂停状态
               try {
-                // ：强制中止内核当前所有的网络请求
+                // 强制中止内核当前所有的网络请求
                 ctrl.stop();
                 //  跳转到空白页，彻底释放 ESP32 的 Socket 连接！
                 ctrl.loadUrl('about:blank');
@@ -479,7 +533,13 @@ export struct MonitorDetail {
               Blank()
               Row({ space: 8 }) {
                 Text(this.isAutoMode ? '自动接管' : '手动干预').fontSize(14).fontColor(this.isAutoMode ? '#00B96B' : '#FF6B6B')
-                Toggle({ type: ToggleType.Switch, isOn: this.isAutoMode }).onChange((isOn) => this.isAutoMode = isOn)
+                // 🌟 使用类的方式下发模式切换
+                Toggle({ type: ToggleType.Switch, isOn: this.isAutoMode }).onChange((isOn) => {
+                  this.isAutoMode = isOn;
+                  let modeCmd = new CmdMode();
+                  modeCmd.Mode = isOn ? 'auto' : 'manual';
+                  this.sendDeviceCmd('Agriculture_Control_Mode', modeCmd);
+                })
               }
             }.width('100%').padding({ left: 15, right: 15, top: 25, bottom: 10 })
 
@@ -487,17 +547,42 @@ export struct MonitorDetail {
               DeviceControlItem({
                 icon: '💦', name: '滴灌水泵', isOn: this.pumpOpen, isAuto: this.isAutoMode,
                 autoText: `当土壤或空气湿度低于设定值时启动`, statusStr: this.pumpStatusStr, isSystemOnline: this.isSystemOnline,
-                onChangeCb: (val: boolean) => { this.pumpOpen = val }
+                onChangeCb: (val: boolean) => {
+                  this.pumpOpen = val;
+                  let pumpCmd = new CmdPump();
+                  pumpCmd.Pump = val ? 'ON' : 'OFF';
+                  this.sendDeviceCmd('Agriculture_Control_Pump', pumpCmd);
+                }
               })
               DeviceControlItem({
                 icon: '☀️', name: 'LED补光灯', isOn: this.ledOpen, isAuto: this.isAutoMode,
                 autoText: `当光照强度低于 ${this.thresholdLight}Lx 时启动`, statusStr: this.ledStatusStr, isSystemOnline: this.isSystemOnline,
-                onChangeCb: (val: boolean) => { this.ledOpen = val }
+                onChangeCb: (val: boolean) => {
+                  this.ledOpen = val;
+                  let ledCmd = new CmdLed();
+                  ledCmd.Led = val ? 'ON' : 'OFF';
+                  this.sendDeviceCmd('Agriculture_Control_Led', ledCmd);
+                }
               })
               DeviceControlItem({
                 icon: '💨', name: '通风排气扇', isOn: this.fanOpen, isAuto: this.isAutoMode,
                 autoText: `当温度或CO2浓度高于设定值时启动`, statusStr: this.fanStatusStr, isSystemOnline: this.isSystemOnline,
-                onChangeCb: (val: boolean) => { this.fanOpen = val }
+                onChangeCb: (val: boolean) => {
+                  this.fanOpen = val;
+                  let fanCmd = new CmdFan();
+                  fanCmd.Fan = val ? 'ON' : 'OFF';
+                  this.sendDeviceCmd('Agriculture_Control_Fan', fanCmd);
+                }
+              })
+              DeviceControlItem({
+                icon: '💨', name: '农药喷湿器', isOn: this.humidifierOpen, isAuto: this.isAutoMode,
+                autoText: `手动接管模式下自由控制`, statusStr: this.humidifierStatusStr, isSystemOnline: this.isSystemOnline,
+                onChangeCb: (val: boolean) => {
+                  this.humidifierOpen = val;
+                  let humiCmd = new CmdHumidifier();
+                  humiCmd.Humidifier = val ? 'ON' : 'OFF';
+                  this.sendDeviceCmd('Agriculture_Control_Humidifier', humiCmd);
+                }
               })
             }.padding({ left: 15, right: 15, bottom: 40 })
 
@@ -518,21 +603,24 @@ export struct MonitorDetail {
         if (this.isDrawerOpen && !this.isFullScreen) {
           Row().width('100%').height('100%').backgroundColor('rgba(0,0,0,0.5)')
             .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
-            .onClick(() => { animateTo({ duration: 300, curve: Curve.EaseIn }, () => { this.isDrawerOpen = false; }) }).zIndex(10)
+            .onClick(() => {
+              animateTo({ duration: 300, curve: Curve.EaseIn }, () => { this.isDrawerOpen = false; })
+            }).zIndex(10)
 
           Column() {
             Row() {
               Text('自动触发阈值').fontSize(20).fontWeight(FontWeight.Bold)
               Blank()
+              // 点击完成按钮时，保存阈值并下发指令
               Text('完成').fontColor('#00B96B').fontSize(16).fontWeight(FontWeight.Medium)
-                .onClick(() => { animateTo({ duration: 300, curve: Curve.EaseIn }, () => { this.isDrawerOpen = false; }) })
+                .onClick(() => { this.saveAndSendThresholds(); })
             }.width('100%').padding({ top: 50, bottom: 20, left: 20, right: 20 })
 
             Scroll() {
               Column({ space: 15 }) {
-                Column() { Row() { Text('🌱 土壤湿度下限').fontSize(14).fontWeight(FontWeight.Medium); Blank(); Text(`${this.thresholdSoil}`).fontColor('#00B96B').fontWeight(FontWeight.Bold) }.width('100%'); Slider({ value: this.thresholdSoil, min: 0, max: 4095 }).selectedColor('#00B96B').onChange((v) => this.thresholdSoil = Math.round(v)) }.padding(15).backgroundColor(Color.White).borderRadius(12)
+                Column() { Row() { Text('🌱 土壤湿度下限').fontSize(14).fontWeight(FontWeight.Medium); Blank(); Text(`${this.thresholdSoil}%`).fontColor('#00B96B').fontWeight(FontWeight.Bold) }.width('100%'); Slider({ value: this.thresholdSoil, min: 0, max: 100 }).selectedColor('#00B96B').onChange((v) => this.thresholdSoil = Math.round(v)) }.padding(15).backgroundColor(Color.White).borderRadius(12)
                 Column() { Row() { Text('💧 空气湿度下限').fontSize(14).fontWeight(FontWeight.Medium); Blank(); Text(`${this.thresholdHumi}%`).fontColor('#4DABF7').fontWeight(FontWeight.Bold) }.width('100%'); Slider({ value: this.thresholdHumi, min: 0, max: 100 }).selectedColor('#4DABF7').onChange((v) => this.thresholdHumi = Math.round(v)) }.padding(15).backgroundColor(Color.White).borderRadius(12)
-                Column() { Row() { Text('☀️ 光照强度下限').fontSize(14).fontWeight(FontWeight.Medium); Blank(); Text(`${this.thresholdLight}Lx`).fontColor('#FCC419').fontWeight(FontWeight.Bold) }.width('100%'); Slider({ value: this.thresholdLight, min: 0, max: 2000 }).selectedColor('#FCC419').onChange((v) => this.thresholdLight = Math.round(v)) }.padding(15).backgroundColor(Color.White).borderRadius(12)
+                Column() { Row() { Text('☀️ 光照强度下限').fontSize(14).fontWeight(FontWeight.Medium); Blank(); Text(`${this.thresholdLight}Lx`).fontColor('#FCC419').fontWeight(FontWeight.Bold) }.width('100%'); Slider({ value: this.thresholdLight, min: 0, max: 100000 }).selectedColor('#FCC419').onChange((v) => this.thresholdLight = Math.round(v)) }.padding(15).backgroundColor(Color.White).borderRadius(12)
                 Column() { Row() { Text('🌡️ 空气温度上限').fontSize(14).fontWeight(FontWeight.Medium); Blank(); Text(`${this.thresholdTemp}℃`).fontColor('#FF6B6B').fontWeight(FontWeight.Bold) }.width('100%'); Slider({ value: this.thresholdTemp, min: 0, max: 50 }).selectedColor('#FF6B6B').onChange((v) => this.thresholdTemp = Math.round(v)) }.padding(15).backgroundColor(Color.White).borderRadius(12)
                 Column() { Row() { Text('💨 CO2浓度上限').fontSize(14).fontWeight(FontWeight.Medium); Blank(); Text(`${this.thresholdCO2}ppm`).fontColor('#A9A9A9').fontWeight(FontWeight.Bold) }.width('100%'); Slider({ value: this.thresholdCO2, min: 0, max: 5000 }).selectedColor('#A9A9A9').onChange((v) => this.thresholdCO2 = Math.round(v)) }.padding(15).backgroundColor(Color.White).borderRadius(12)
               }.width('100%').padding({ left: 15, right: 15, bottom: 40 })
@@ -547,8 +635,7 @@ export struct MonitorDetail {
           Stack() {
             // 背景黑底，画面等比例居中
             this.VideoContent(this.fsController)
-
-            // 退出全屏按钮 (左上角)
+            // 退出全屏按钮 (
             Row({ space: 6 }) {
               Text('< 返回').fontSize(16).fontColor(Color.White).fontWeight(FontWeight.Bold)
             }
@@ -581,7 +668,7 @@ export struct MonitorDetail {
         this.toggleFullScreen(false);
         return true; // 拦截默认返回
       }
-      return false; // 正常返回上一页
+      return false;
     })
   }
 }

@@ -18,6 +18,7 @@ export class ShadowProperties {
   LedStatus: string = '';
   Mode: string = '';
   GrowthStage: string = '';
+  HumidifierStatus: string = '';
 }
 
 export class ShadowReported {
@@ -68,11 +69,20 @@ class IamAuthRequest {
   auth: IamAuth = new IamAuth();
 }
 
+// 下发命令的 Body 结构定义
+export class DeviceCommandBody {
+  service_id: string = 'Agriculture';
+  command_name: string = '';
+  paras: Object = new Object();
+}
 
 // 核心服务类
 export class IotService {
   private static readonly IAM_API_URL = 'https://iam.cn-north-4.myhuaweicloud.com/v3/auth/tokens';
   private static readonly IOT_SHADOW_URL = `https://b6c2a407d5.st1.iotda-app.cn-south-1.myhuaweicloud.com/v5/iot/${IotConfig.PROJECT_ID}/devices/%s/shadow?service_id=Agriculture`;
+
+  // 提取设备命令下发的基础 URL
+  private static readonly IOT_COMMAND_URL = `https://b6c2a407d5.st1.iotda-app.cn-south-1.myhuaweicloud.com/v5/iot/${IotConfig.PROJECT_ID}/devices/%s/commands`;
 
   private static cachedToken: string = '';
   private static tokenExpireTime: number = 0;
@@ -129,6 +139,53 @@ export class IotService {
   }
 
   /**
+   * 下发设备命令 (ArkTS 强类型实现)
+   */
+  static async sendCommand(deviceId: string, commandName: string, paras: Object): Promise<boolean> {
+    let token = await IotService.getValidToken();
+    if (!token) {
+      return false;
+    }
+
+    let httpRequest = http.createHttp();
+    let url = IotService.IOT_COMMAND_URL.replace('%s', deviceId);
+
+    // 组装发送结构体
+    let reqBody = new DeviceCommandBody();
+    reqBody.command_name = commandName;
+    reqBody.paras = paras;
+
+    let reqHeaders: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'X-Auth-Token': token,
+      'Instance-Id': IotConfig.INSTANCE_ID
+    };
+
+    try {
+      let response = await httpRequest.request(url, {
+        method: http.RequestMethod.POST,
+        header: reqHeaders,
+        extraData: JSON.stringify(reqBody),
+        connectTimeout: 5000,
+        // 因为平台可能会在设备不在线时最多等待20秒，这里设为22秒保证能接住平台的超时回复
+        readTimeout: 22000
+      });
+
+      if (response.responseCode === 200) {
+        return true;
+      } else {
+        console.error(`下发命令[${commandName}]报错:`, response.responseCode.toString(), typeof response.result === 'string' ? response.result : JSON.stringify(response.result));
+        return false;
+      }
+    } catch (err) {
+      console.error(`下发命令[${commandName}]网络异常:`, JSON.stringify(err));
+      return false;
+    } finally {
+      httpRequest.destroy();
+    }
+  }
+
+  /**
    * 获取设备影子数据
    */
   static async getDeviceShadow(deviceId: string): Promise<ShadowResult> {
@@ -136,12 +193,9 @@ export class IotService {
     let token = await IotService.getValidToken();
 
     if (!token) {
-      console.error('========== 错误：无法获取有效的鉴权 Token ==========');
       result.code = 401;
       return result;
     }
-
-    console.info('========== 1. 成功准备好 Token ==========\n', token);
 
     let httpRequest = http.createHttp();
     let url = IotService.IOT_SHADOW_URL.replace('%s', deviceId);
@@ -161,12 +215,9 @@ export class IotService {
       });
 
       result.code = response.responseCode;
-      console.info('========== 2. 华为云接口返回状态码 ==========\n', response.responseCode.toString());
 
       if (response.responseCode === 200) {
         let resultStr = typeof response.result === 'string' ? response.result : JSON.stringify(response.result);
-
-        console.info('========== 3. 华为云返回的原始JSON字符串 ==========\n', resultStr);
 
         try {
           let jsonObj = JSON.parse(resultStr) as DeviceShadowResponse;
@@ -175,8 +226,6 @@ export class IotService {
             let properties = jsonObj.shadow[0].reported?.properties;
 
             if (properties) {
-              console.info('========== 4. 成功提取到 properties 对象 ==========\n', JSON.stringify(properties));
-
               let sp = new ShadowProperties();
 
               sp.Temperature = properties.Temperature ?? 0;
@@ -194,25 +243,17 @@ export class IotService {
               sp.PumpStatus = properties.PumpStatus ?? 'OFF';
               sp.FanStatus = properties.FanStatus ?? 'OFF';
               sp.LedStatus = properties.LedStatus ?? 'OFF';
+              sp.HumidifierStatus=properties.HumidifierStatus??'OFF';
               sp.Mode = properties.Mode ?? 'manual';
               sp.GrowthStage = properties.GrowthStage ?? '';
 
               result.data = sp;
-            } else {
-              console.error('========== 错误：解析到了 shadow，但没有 reported.properties ==========');
             }
-          } else {
-            console.error('========== 错误：解析出的 shadow 为空或不存在 ==========');
           }
-        } catch (parseErr) {
-          console.error('========== 错误：JSON.parse 抛出异常 ==========\n', JSON.stringify(parseErr));
-        }
+        } catch (parseErr) {}
 
-      } else {
-        console.error('========== 错误：接口请求失败，返回结果如下 ==========\n', typeof response.result === 'string' ? response.result : JSON.stringify(response.result));
       }
     } catch (err) {
-      console.error('========== 错误：获取设备影子网络请求抛出异常 ==========\n', JSON.stringify(err));
       result.code = 500;
     } finally {
       httpRequest.destroy();
