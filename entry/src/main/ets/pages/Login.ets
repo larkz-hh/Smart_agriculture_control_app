@@ -83,8 +83,9 @@ export struct Login {
         AppStorage.setOrCreate('user_access_token', result.token);
       }
 
-      this.pathStack.clear();
-      this.pathStack.pushPathByName('Layout', null);
+      // this.pathStack.clear();
+      // this.pathStack.pushPathByName('Layout', null);
+      this.pathStack.pop();
     }
   }
 
