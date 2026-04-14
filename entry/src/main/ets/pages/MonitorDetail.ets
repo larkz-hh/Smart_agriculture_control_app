@@ -4,6 +4,7 @@ import { IotService } from '../services/iot/IotService';
 import { DatabaseManager } from '../data/DatabaseManager';
 import window from '@ohos.window';
 import { webview } from '@kit.ArkWeb';
+import { AiService } from '../services/ai/AIService';
 
 export class CmdStage { Stage: string = '0'; }
 export class CmdMode { Mode: string = ''; }
@@ -215,6 +216,64 @@ export struct MonitorDetail {
   @State thresholdHumi: number = 45;
   @State thresholdCO2: number = 1000;
   @State isPlaying: boolean = false;
+  @State isAiLoading: boolean = false;
+  async autoSetThresholds() {
+    if (!this.ghData.crop || this.ghData.crop.trim() === '') {
+      promptAction.showToast({ message: '请先点击大棚页面右上角齿轮图标设置种植作物！' });
+      return;
+    }
+    if (this.ghData.stage === undefined || this.ghData.stage < 0) {
+      promptAction.showToast({ message: '请先点击大棚页面右上角齿轮图标设置生长阶段！' });
+      return;
+    }
+
+    let stages = ['育苗期', '生长期', '开花期', '结果期'];
+    let stageName = stages[this.ghData.stage];
+
+    this.isAiLoading = true;
+    try {
+      // 调取 AI 接口
+      let aiResult = await AiService.getPlantInfo(this.ghData.crop, stageName);
+      if (aiResult) {
+        // 辅助方法：从类似 "25-30℃" 的字符串里提取所有数字
+        let extractNums = (str: string) => {
+          if (!str) return [];
+          let matches = str.match(/\d+/g);
+          return matches ? matches.map(Number) : [];
+        };
+
+        // 限取范围最小值，上限取范围最大值
+        // 土壤湿度下限 (提取到的数字里取最小，且不超过100)
+        let soilNums = extractNums(aiResult.soilMoisture);
+        if (soilNums.length > 0) this.thresholdSoil = Math.min(100, Math.max(0, Math.min(...soilNums)));
+
+        // 空气湿度下限
+        let humiNums = extractNums(aiResult.airMoisture);
+        if (humiNums.length > 0) this.thresholdHumi = Math.min(100, Math.max(0, Math.min(...humiNums)));
+
+        // 光照强度下限
+        let lightNums = extractNums(aiResult.light);
+        if (lightNums.length > 0) this.thresholdLight = Math.min(100000, Math.max(0, Math.min(...lightNums)));
+
+        // 空气温度上限 (提取到的数字里取最大，且不超过50℃)
+        let tempNums = extractNums(aiResult.airTemp);
+        if (tempNums.length > 0) this.thresholdTemp = Math.min(50, Math.max(0, Math.max(...tempNums)));
+
+        // CO2上限
+        let co2Nums = extractNums(aiResult.carbonDioxide);
+        if (co2Nums.length > 0) this.thresholdCO2 = Math.min(5000, Math.max(0, Math.max(...co2Nums)));
+
+        promptAction.showToast({ message: '✨ 已根据 AI 推荐更新阈值，请检查后点击“完成”保存' });
+      } else {
+        promptAction.showToast({ message: 'AI 分析失败或网络超时' });
+      }
+    } catch (err) {
+      console.error('AI设置阈值异常', err);
+      promptAction.showToast({ message: '请求异常，请检查网络' });
+    } finally {
+      this.isAiLoading = false;
+    }
+  }
 
   sendDeviceCmd(commandName: string, paras: Object) {
     if (!this.ghData.deviceId) {
@@ -449,8 +508,10 @@ export struct MonitorDetail {
               }.alignItems(HorizontalAlign.Start)
               Blank()
 
-              Image($r('app.media.app_icon'))
-                .width(24).height(24)
+              Text('⋮')
+                .fontSize(20).fontWeight(FontWeight.Bold).fontColor('#999')
+                .padding({left: 10, right: 5, bottom: 5})
+               // .width(24).height(24)
                 .onClick(() => {
                   this.editGhData.id = this.ghData.id;
                   this.editGhData.name = this.ghData.name;
@@ -578,6 +639,16 @@ export struct MonitorDetail {
             Row() {
               Text('自动触发阈值').fontSize(20).fontWeight(FontWeight.Bold)
               Blank()
+
+
+              if (this.isAiLoading) {
+                LoadingProgress().width(20).height(20).color('#00B96B').margin({ right: 15 })
+              } else {
+                Text('✨ 智能推荐').fontColor('#FCC419').fontSize(14).fontWeight(FontWeight.Bold)
+                  .margin({ right: 15 })
+                  .onClick(() => { this.autoSetThresholds(); })
+              }
+
               Text('完成').fontColor('#00B96B').fontSize(16).fontWeight(FontWeight.Medium)
                 .onClick(() => { this.saveAndSendThresholds(); })
             }.width('100%').padding({ top: 50, bottom: 20, left: 20, right: 20 })

@@ -256,7 +256,7 @@ export struct Monitor {
       Image($r('app.media.farm'))
         .width('110%')
         .height('56%')
-        .opacity(0.1)
+        .opacity(0.3)
         .position({ x: '-10%', y: '50%' })
 
       Column() {
