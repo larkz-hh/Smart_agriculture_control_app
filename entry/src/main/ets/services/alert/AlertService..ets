@@ -2,11 +2,20 @@ import notificationManager from '@ohos.notificationManager';
 import { DatabaseManager } from '../../data/DatabaseManager';
 import { AlertMessageModel } from '../../model/AlertMessageModel';
 import { IotService } from '../iot/IotService';
+import { common } from '@kit.AbilityKit';
 
 export class AlertService {
   private static timer: number = -1;
   // 用于防抖，避免同一大棚频繁报警 id 与时间间隔
   private static lastAlertMap: Map<number, number> = new Map();
+  //申请通知权限
+  static requestNotificationPermission(context: common.UIAbilityContext) {
+    notificationManager.requestEnableNotification(context).then(() => {
+      console.info('通知权限已授权');
+    }).catch((err: Error) => {
+      console.error('获取通知权限失败:', err.message);
+    });
+  }
 
   static startPolling() {
     // 防止重复启动
@@ -14,6 +23,10 @@ export class AlertService {
 
     // 每 15 秒轮询一次
     AlertService.timer = setInterval(async () => {
+      let isEnabled = AppStorage.get<boolean>('isAlertEnabled');
+      if (isEnabled === false) {
+        return; // 如果用户在设置里关掉了预警，直接跳过本次轮询
+      }
       let ghList = await DatabaseManager.getGreenhouseList();
       for (let gh of ghList) {
         if (!gh.deviceId || !gh.id) continue;
