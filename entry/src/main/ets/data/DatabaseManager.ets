@@ -3,6 +3,7 @@ import { common } from '@kit.AbilityKit';
 import { MessageModel, SessionItem } from '../model/MessageModel';
 import { PlantRecord, RecordGroup } from '../model/RecordModel';
 import { GreenhouseModel } from '../model/GreenhouseModel';
+import { AlertMessageModel } from '../model/AlertMessageModel';
 
 export class DatabaseManager {
   private static rdbStore: relationalStore.RdbStore | null = null;
@@ -13,7 +14,6 @@ export class DatabaseManager {
       name: 'AgriChat.db',
       securityLevel: relationalStore.SecurityLevel.S1
     };
-    // 🌟 在建表语句中加入 coverImage
     const createGreenhouseTable = `CREATE TABLE IF NOT EXISTS Greenhouse (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT,
@@ -21,9 +21,22 @@ export class DatabaseManager {
       crop TEXT,
       stage INTEGER,
       camUrl TEXT,
-      coverImage TEXT
+      coverImage TEXT,
+      thresholdTemp INTEGER DEFAULT 32,
+      thresholdHumi INTEGER DEFAULT 45,
+      thresholdLight INTEGER DEFAULT 500,
+      thresholdSoil INTEGER DEFAULT 20,
+      thresholdCO2 INTEGER DEFAULT 1000
     )`;
 
+    const createAlertTable = `CREATE TABLE IF NOT EXISTS AlertMessage (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      ghId INTEGER,
+      ghName TEXT,
+      content TEXT,
+      timestamp INTEGER,
+      isRead INTEGER DEFAULT 0
+    )`;
     const createSessionTable = `CREATE TABLE IF NOT EXISTS Session (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       title TEXT,
@@ -53,16 +66,12 @@ export class DatabaseManager {
     try {
       DatabaseManager.rdbStore = await relationalStore.getRdbStore(context, config);
       await DatabaseManager.rdbStore.executeSql(createGreenhouseTable);
-
-      // 🌟 兼容老数据：尝试为已存在的旧表添加 coverImage 字段（如果报错说明已存在，直接忽略）
-      try {
-        await DatabaseManager.rdbStore.executeSql('ALTER TABLE Greenhouse ADD COLUMN coverImage TEXT');
-      } catch (e) {}
-
       await DatabaseManager.rdbStore.executeSql(createSessionTable);
       await DatabaseManager.rdbStore.executeSql(createMessageTable);
       await DatabaseManager.rdbStore.executeSql(createRecordGroupTable);
-      await DatabaseManager.rdbStore.executeSql(createPlantRecordTable)
+      await DatabaseManager.rdbStore.executeSql(createPlantRecordTable);
+      await DatabaseManager.rdbStore.executeSql(createAlertTable);
+
       console.info('数据库初始化成功');
     } catch (e) {
       console.error('数据库初始化失败:', JSON.stringify(e));
@@ -268,7 +277,7 @@ export class DatabaseManager {
     }
   }
 
-  // 🌟 修改：插入包含封面图片的数据
+
   static async insertGreenhouse(gh: GreenhouseModel): Promise<number> {
     if (!DatabaseManager.rdbStore) return -1;
     let bucket: relationalStore.ValuesBucket = {
@@ -277,12 +286,16 @@ export class DatabaseManager {
       crop: gh.crop,
       stage: gh.stage,
       camUrl: gh.camUrl || '',
-      coverImage: gh.coverImage || '' // 新增
+      coverImage: gh.coverImage || '',
+      thresholdTemp: gh.thresholdTemp ?? 32,
+      thresholdHumi: gh.thresholdHumi ?? 45,
+      thresholdLight: gh.thresholdLight ?? 500,
+      thresholdSoil: gh.thresholdSoil ?? 20,
+      thresholdCO2: gh.thresholdCO2 ?? 1000
     };
     return await DatabaseManager.rdbStore.insert('Greenhouse', bucket);
   }
 
-  // 🌟 修改：查询数据时带上封面图片
   static async getGreenhouseList(): Promise<GreenhouseModel[]> {
     if (!DatabaseManager.rdbStore) return [];
     let predicates = new relationalStore.RdbPredicates('Greenhouse');
@@ -296,14 +309,18 @@ export class DatabaseManager {
       gh.crop = rs.getString(rs.getColumnIndex('crop'));
       gh.stage = rs.getLong(rs.getColumnIndex('stage'));
       gh.camUrl = rs.getString(rs.getColumnIndex('camUrl'));
-      gh.coverImage = rs.getString(rs.getColumnIndex('coverImage')); // 新增
+      gh.coverImage = rs.getString(rs.getColumnIndex('coverImage'));
+      gh.thresholdTemp = rs.getLong(rs.getColumnIndex('thresholdTemp'));
+      gh.thresholdHumi = rs.getLong(rs.getColumnIndex('thresholdHumi'));
+      gh.thresholdLight = rs.getLong(rs.getColumnIndex('thresholdLight'));
+      gh.thresholdSoil = rs.getLong(rs.getColumnIndex('thresholdSoil'));
+      gh.thresholdCO2 = rs.getLong(rs.getColumnIndex('thresholdCO2'));
       list.push(gh);
     }
     rs.close();
     return list;
   }
 
-  // 🌟 修改：更新数据时带上封面图片
   static async updateGreenhouse(gh: GreenhouseModel) {
     if (!DatabaseManager.rdbStore || !gh.id) return;
     let bucket: relationalStore.ValuesBucket = {
@@ -312,7 +329,12 @@ export class DatabaseManager {
       crop: gh.crop,
       stage: gh.stage,
       camUrl: gh.camUrl || '',
-      coverImage: gh.coverImage || '' // 新增
+      coverImage: gh.coverImage || '',
+      thresholdTemp: gh.thresholdTemp,
+      thresholdHumi: gh.thresholdHumi,
+      thresholdLight: gh.thresholdLight,
+      thresholdSoil: gh.thresholdSoil,
+      thresholdCO2: gh.thresholdCO2
     };
     let predicates = new relationalStore.RdbPredicates('Greenhouse');
     predicates.equalTo('id', gh.id);
@@ -324,5 +346,70 @@ export class DatabaseManager {
     let predicates = new relationalStore.RdbPredicates('Greenhouse');
     predicates.equalTo('id', id);
     await DatabaseManager.rdbStore.delete(predicates);
+  }
+
+
+  // ================== 预警消息的增删查改 ==================
+
+  static async insertAlert(alert: AlertMessageModel): Promise<void> {
+    if (!DatabaseManager.rdbStore) return;
+    let bucket: relationalStore.ValuesBucket = {
+      ghId: alert.ghId,
+      ghName: alert.ghName,
+      content: alert.content,
+      timestamp: alert.timestamp,
+      isRead: 0 // 默认未读
+    };
+    await DatabaseManager.rdbStore.insert('AlertMessage', bucket);
+  }
+
+  static async getAlertList(): Promise<AlertMessageModel[]> {
+    if (!DatabaseManager.rdbStore) return [];
+    let predicates = new relationalStore.RdbPredicates('AlertMessage');
+    predicates.orderByDesc('timestamp'); // 按时间倒序
+    let rs = await DatabaseManager.rdbStore.query(predicates);
+    let list: AlertMessageModel[] = [];
+    while (rs.goToNextRow()) {
+      let alert = new AlertMessageModel();
+      alert.id = rs.getLong(rs.getColumnIndex('id'));
+      alert.ghId = rs.getLong(rs.getColumnIndex('ghId'));
+      alert.ghName = rs.getString(rs.getColumnIndex('ghName'));
+      alert.content = rs.getString(rs.getColumnIndex('content'));
+      alert.timestamp = rs.getLong(rs.getColumnIndex('timestamp'));
+      list.push(alert);
+    }
+    rs.close();
+    return list;
+  }
+  //清空指定消息
+  static async deleteAlert(id: number): Promise<void> {
+    if (!DatabaseManager.rdbStore) return;
+    let predicates = new relationalStore.RdbPredicates('AlertMessage');
+    predicates.equalTo('id', id);
+    await DatabaseManager.rdbStore.delete(predicates);
+  }
+  //清空所有消息
+  static async clearAllAlerts(): Promise<void> {
+    if (!DatabaseManager.rdbStore) return;
+    let predicates = new relationalStore.RdbPredicates('AlertMessage');
+    await DatabaseManager.rdbStore.delete(predicates);
+  }
+  //获取未读消息数量
+  static async getUnreadAlertCount(): Promise<number> {
+    if (!DatabaseManager.rdbStore) return 0;
+    let predicates = new relationalStore.RdbPredicates('AlertMessage');
+    predicates.equalTo('isRead', 0);
+    let rs = await DatabaseManager.rdbStore.query(predicates);
+    let count = rs.rowCount;
+    rs.close();
+    return count;
+  }
+  //标记所有消息已读
+  static async markAllAlertsAsRead(): Promise<void> {
+    if (!DatabaseManager.rdbStore) return;
+    let bucket: relationalStore.ValuesBucket = { isRead: 1 };
+    let predicates = new relationalStore.RdbPredicates('AlertMessage');
+    predicates.equalTo('isRead', 0);
+    await DatabaseManager.rdbStore.update(bucket, predicates);
   }
 }
