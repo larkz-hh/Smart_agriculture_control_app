@@ -113,6 +113,10 @@ export struct Mine {
         if (this.pathStack) {
           this.pathStack.pushPathByName('CustomerService', null);
         }
+      }  else if (item.text === '设置') {
+        if (this.pathStack) {
+          this.pathStack.pushPathByName('Settings', null);
+        }
       } else {
         promptAction.showToast({ message: '功能开发中...' });
       }

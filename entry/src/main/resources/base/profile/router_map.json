@@ -69,6 +69,11 @@
       "name": "AlertList",
       "pageSourceFile": "src/main/ets/pages/AlertList.ets",
       "buildFunction": "AlertListBuilder"
+    },
+    {
+      "name": "Settings",
+      "pageSourceFile": "src/main/ets/pages/Settings.ets",
+      "buildFunction": "SettingsBuilder"
     }
   ]
 }
