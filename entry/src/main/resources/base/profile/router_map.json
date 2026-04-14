@@ -64,6 +64,11 @@
       "name": "CustomerService",
       "pageSourceFile": "src/main/ets/pages/CustomerService.ets",
       "buildFunction": "CustomerServiceBuilder"
+    },
+    {
+      "name": "AlertList",
+      "pageSourceFile": "src/main/ets/pages/AlertList.ets",
+      "buildFunction": "AlertListBuilder"
     }
   ]
 }

@@ -3,11 +3,14 @@ import emitter from '@ohos.events.emitter';
 import { common } from '@kit.AbilityKit';
 import { HomeViewModel } from '../viewmodel/HomeViewModel';
 import { WeatherInfo } from '../model/WeatherModel';
+import { DatabaseManager } from '../data/DatabaseManager';
+
 @Preview
 @Component
 export struct Home {
 
   pathStack?: NavPathStack;
+  @StorageLink('hasNewAlert') hasNewAlert: boolean = false;
   @StorageLink('homeNewsCache') newsList: NewsItem[] = [];
   @State isLoading: boolean = false;
 
@@ -17,6 +20,12 @@ export struct Home {
   aboutToAppear() {
     this.loadNewsData();
     this.initWeatherData();
+    this.checkUnreadAlerts(); //  每次回到首页，查询一次数据库核实
+  }
+
+  async checkUnreadAlerts() {
+    let count = await DatabaseManager.getUnreadAlertCount();
+    AppStorage.setOrCreate('hasNewAlert', count > 0);
   }
 
   // 加载新闻
@@ -153,6 +162,7 @@ export struct Home {
         this.WeatherCard()
 
         // 快捷导航(金刚区)
+        // 快捷导航(金刚区)
         Row() {
           this.QuickEntryItem('植物百科', $r('app.media.plants_icon'), () => {
             if (this.pathStack) {
@@ -164,14 +174,23 @@ export struct Home {
             this.pathStack?.pushPathByName('RecordList',null)
           })
 
-          this.QuickEntryItem('添加设备', $r('app.media.device_add_icon'), () => {
-            console.info('点击了添加设备');
-          })
+          // if-else 强制 ArkUI 重新渲染组件
+          if (this.hasNewAlert) {
+            this.QuickEntryItem('预警消息', $r('app.media.message2_icon'), () => {
+              if (this.pathStack) {
+                this.pathStack.pushPathByName('AlertList', null);
+              }
+            })
+          } else {
+            this.QuickEntryItem('预警消息', $r('app.media.message1_icon'), () => {
+              if (this.pathStack) {
+                this.pathStack.pushPathByName('AlertList', null);
+              }
+            })
+          }
 
           this.QuickEntryItem('拍照识病', $r('app.media.diagnosis_icon'), () => {
-            // 发送事件1001,通知Layout切换到Chat页面
             emitter.emit({ eventId: 1001 });
-            //延迟 200毫秒发送事件1002,给系统一点时间把Chat页面渲染出来，再拉起相机
             setTimeout(() => {
               emitter.emit({ eventId: 1002 });
             }, 200);

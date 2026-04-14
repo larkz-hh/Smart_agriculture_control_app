@@ -19,7 +19,7 @@ export class ShadowProperties {
   Mode: string = '';
   GrowthStage: string = '';
   HumidifierStatus: string = '';
-}
+}//
 
 export class ShadowReported {
   properties?: ShadowProperties;

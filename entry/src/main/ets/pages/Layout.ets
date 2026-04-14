@@ -4,6 +4,7 @@ import { Home } from "./Home";
 import { Mine } from "./Mine";
 import { Monitor } from "./Monitor";
 import emitter from '@ohos.events.emitter';
+import { AlertService } from "../services/alert/AlertService.";
 
 // 跳转页面入口函数
 interface TabClass {
@@ -23,7 +24,9 @@ struct Layout {
   @Local currentIndex: number = 0
   pathStack: NavPathStack = new NavPathStack();
   aboutToAppear(): void {
-    DatabaseManager.init(getContext(this));
+    DatabaseManager.init(getContext(this)).then(() => {
+      AlertService.startPolling();
+    });
     emitter.on({ eventId: 1001 }, () => {
       this.currentIndex = 2;
     });
