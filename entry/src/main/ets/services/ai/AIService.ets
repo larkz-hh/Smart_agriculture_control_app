@@ -30,6 +30,7 @@ export interface PlantInfo {
   airTemp: string;
   airMoisture: string;
   carbonDioxide: string;
+  advice: string;
 }
 
 interface Thinking{
@@ -238,14 +239,15 @@ export class AiService {
 
     let systemPrompt = `你现在是一个专业的农业环境数据API。请根据用户提供的【作物名称】和【生长时期】，严格返回该时期适宜的生长环境数据。
     警告：你必须且只能返回合法的JSON对象，绝对不要包含任何Markdown标记（如 \`\`\`json ），不要任何废话解释！
-    JSON 必须包含以下5个字段：
+    JSON 必须包含以下7个字段：
     {
       "light": "适宜光照强度描述(最小值和最大值，单位Lx)",
       "soilTemp": "土壤适宜温度描述(最小值和最大值,单位℃)",
       "soilMoisture": "土壤适宜湿度描述(最小值和最大值)",
       "airTemp": "空气适宜温度描述(最小值和最大值，单位℃)",
       "airMoisture": "空气适宜湿度(最小值和最大值)",
-      "carbonDioxide": "二氧化碳适宜浓度(最小值和最大值，单位ppm)"
+      "carbonDioxide": "二氧化碳适宜浓度(最小值和最大值，单位ppm)",
+      "advice": "针对该作物在此生长阶段的种植建议与注意事项，字数严格控制在30到50字左右"
     }`;
 
     let userPrompt = `作物名称：${plantName}，生长时期：${stage}`;

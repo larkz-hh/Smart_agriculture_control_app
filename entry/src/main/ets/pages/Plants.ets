@@ -5,7 +5,7 @@ import { AiService, PlantInfo } from '../services/ai/AIService';
 export function PlantsBuilder(name: string, param: Object) {
   Plants()
 }
-
+@Preview
 @Component
 export struct Plants {
   pathStack: NavPathStack = new NavPathStack();
@@ -57,15 +57,16 @@ export struct Plants {
   build() {
     NavDestination() {
       Column() {
+        // 顶部输入区卡片
         Column({ space: 15 }) {
           Text('告诉我们你种了什么，AI专家为你提供最佳环境参数')
-            .fontSize(14).fontColor('#999').margin({ bottom: 5, top: 10 })
+            .fontSize(12).fontColor('#999').margin({ bottom: 5, top: 10 })
 
-          TextInput({ placeholder: '例如：番茄、草莓、水稻...', text: this.plantName })
+          TextInput({ placeholder: '番茄、草莓、水稻...', text: this.plantName })
             .height(50).backgroundColor('#F5F5F5')
             .onChange((val) => this.plantName = val)
 
-          TextInput({ placeholder: '例如：发芽期、幼苗期、开花期、结果期...', text: this.growthStage })
+          TextInput({ placeholder: '育苗期、生长期、开花期、结果期', text: this.growthStage })
             .height(50).backgroundColor('#F5F5F5')
             .onChange((val) => this.growthStage = val)
 
@@ -82,10 +83,10 @@ export struct Plants {
         .backgroundColor(Color.White)
         .borderRadius(16)
         .width('92%')
-        .margin({ top: 20 })
+        .margin({ top: 30 })
         .shadow({ radius: 10, color: '#0A000000', offsetY: 4 })
 
-        //状态与结果
+        // 状态与结果区域
         if (this.isLoading) {
           Column({ space: 15 }) {
             LoadingProgress().width(40).height(40).color('#00B96B')
@@ -105,11 +106,43 @@ export struct Plants {
               this.ResultItem('空气适宜温度', this.resultInfo.airTemp, '#FF6B6B')
               this.ResultItem('空气适宜湿度', this.resultInfo.airMoisture, '#A9A9A9')
               this.ResultItem('二氧化碳适宜浓度',this.resultInfo.carbonDioxide,'#000000')
+
+              if (this.resultInfo.advice) {
+                Column() {
+                  Row({ space: 6 }) {
+                    Text('💡').fontSize(16)
+                    Text('专家建议').fontSize(16).fontWeight(FontWeight.Bold).fontColor('#00B96B')
+                  }.width('100%').margin({ bottom: 8 })
+                  Text(this.resultInfo.advice)
+                    .fontSize(14)
+                    .fontColor('#333')
+                    .lineHeight(22)
+                    .width('100%')
+                }
+                .width('100%')
+                .padding(15)
+                .backgroundColor('#E6F8F0') // 浅绿色背景，更贴合农业专家建议
+                .borderRadius(12)
+                .margin({ top: 10 })
+              }
             }
             .padding(20)
-          }.layoutWeight(1)
+          }.layoutWeight(1) // 有数据时，占据底部剩余所有空间
           .margin({ top: 10 })
+          .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.BOTTOM])
         }
+
+        if (!this.isLoading && !this.resultInfo)  {
+          Blank()
+
+          Image($r('app.media.vegetables'))
+            .width('100%')
+
+            .objectFit(ImageFit.Cover)
+            .align(Alignment.Bottom)
+            .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.BOTTOM])
+        }
+
       }
       .width('100%')
       .height('100%')

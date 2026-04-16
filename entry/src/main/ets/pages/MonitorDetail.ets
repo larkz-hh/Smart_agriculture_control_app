@@ -344,17 +344,18 @@ export struct MonitorDetail {
 
   async toggleFullScreen(isFull: boolean) {
     try {
+      // 进入全屏模式
       if (isFull) {
         try {
-          this.controller.stop();
+          this.controller.stop();// 停止小窗口播放
           this.controller.loadUrl('about:blank');
         } catch(e) {}
 
         setTimeout(async () => {
           this.isFullScreen = true;
           let win = await window.getLastWindow(getContext(this));
-          await win.setPreferredOrientation(window.Orientation.LANDSCAPE);
-          await win.setWindowSystemBarEnable([]);
+          await win.setPreferredOrientation(window.Orientation.LANDSCAPE);// 横屏
+          await win.setWindowSystemBarEnable([]);//隐藏状态栏
 
           setTimeout(() => {
             if (this.ghData.camUrl && this.isPlaying) {
@@ -365,6 +366,7 @@ export struct MonitorDetail {
 
       } else {
         try {
+          // 退出全屏
           this.fsController.stop();
           this.fsController.loadUrl('about:blank');
         } catch(e) {}
@@ -377,6 +379,7 @@ export struct MonitorDetail {
 
           setTimeout(() => {
             if (this.ghData.camUrl && this.isPlaying) {
+              // 恢复小窗播放
               try { this.controller.loadUrl(this.ghData.camUrl); } catch(e) {}
             }
           }, 300);
@@ -435,21 +438,23 @@ export struct MonitorDetail {
   }
 
   @Builder VideoContent(ctrl: webview.WebviewController) {
-    if (this.ghData.camUrl) {
+    if (this.ghData.camUrl) {// 检查是否存在摄像头地址
       Stack() {
+        //Web组件加载视频流
         Web({ src: this.isPlaying ? this.ghData.camUrl : 'about:blank', controller: ctrl })
           .width('100%')
           .height('100%')
-          .backgroundColor(Color.Black)
-          .javaScriptAccess(true)
-          .domStorageAccess(true)
-          .mediaPlayGestureAccess(false)
-          .verticalScrollBarAccess(false)
-          .horizontalScrollBarAccess(false)
+          .backgroundColor(Color.Black)// 视频背景设为黑色
+          .javaScriptAccess(true)// 启用JS交互
+          .domStorageAccess(true) // 启用本地存储
+          .mediaPlayGestureAccess(false) // 禁止手势控制（防误触）
+          .verticalScrollBarAccess(false) // 隐藏滚动条
+          .horizontalScrollBarAccess(false)// 隐藏滚动条
 
         if (this.isPlaying) {
+          //通过透明覆盖层实现点击停止播放
           Rect().width('100%').height('100%').fill(Color.Transparent)
-            .onClick(() => {
+            .onClick(() => {// 点击停止播放
               this.isPlaying = false;
               try {
                 ctrl.stop();
