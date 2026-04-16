@@ -11,4 +11,7 @@ export class GreenhouseModel {
   thresholdLight: number = 500;
   thresholdSoil: number = 20;
   thresholdCO2: number = 1000;
+  autoStageEnabled: boolean = false; // 是否开启了自动下一阶段
+  nextStageTime: number = 0;  // 下一个阶段开始的绝对时间戳（毫秒）
+  plantTime: number = 0
 }

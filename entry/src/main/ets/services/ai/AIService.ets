@@ -31,6 +31,7 @@ export interface PlantInfo {
   airMoisture: string;
   carbonDioxide: string;
   advice: string;
+  durationDays: number;
 }
 
 interface Thinking{
@@ -247,8 +248,10 @@ export class AiService {
       "airTemp": "空气适宜温度描述(最小值和最大值，单位℃)",
       "airMoisture": "空气适宜湿度(最小值和最大值)",
       "carbonDioxide": "二氧化碳适宜浓度(最小值和最大值，单位ppm)",
-      "advice": "针对该作物在此生长阶段的种植建议与注意事项，字数严格控制在30到50字左右"
-    }`;
+      "advice": "针对该作物在此生长阶段的种植建议与注意事项，字数严格控制在30到50字左右",
+      "durationDays": 15
+    }
+    注意：durationDays必须是纯数字，代表该生长阶段通常需要持续的天数。`   ;
 
     let userPrompt = `作物名称：${plantName}，生长时期：${stage}`;
     let apiMessages: ApiMessage[] = [

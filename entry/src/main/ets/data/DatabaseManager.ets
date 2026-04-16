@@ -26,7 +26,10 @@ export class DatabaseManager {
       thresholdHumi INTEGER DEFAULT 45,
       thresholdLight INTEGER DEFAULT 500,
       thresholdSoil INTEGER DEFAULT 20,
-      thresholdCO2 INTEGER DEFAULT 1000
+      thresholdCO2 INTEGER DEFAULT 1000,
+      autoStageEnabled INTEGER DEFAULT 0,
+      nextStageTime INTEGER DEFAULT 0,
+      plantTime INTEGER DEFAULT 0
     )`;
 
     const createAlertTable = `CREATE TABLE IF NOT EXISTS AlertMessage (
@@ -291,7 +294,10 @@ export class DatabaseManager {
       thresholdHumi: gh.thresholdHumi ?? 45,
       thresholdLight: gh.thresholdLight ?? 500,
       thresholdSoil: gh.thresholdSoil ?? 20,
-      thresholdCO2: gh.thresholdCO2 ?? 1000
+      thresholdCO2: gh.thresholdCO2 ?? 1000,
+      autoStageEnabled: gh.autoStageEnabled ? 1 : 0,
+      nextStageTime: gh.nextStageTime ?? 0,
+      plantTime: gh.plantTime
     };
     return await DatabaseManager.rdbStore.insert('Greenhouse', bucket);
   }
@@ -315,6 +321,9 @@ export class DatabaseManager {
       gh.thresholdLight = rs.getLong(rs.getColumnIndex('thresholdLight'));
       gh.thresholdSoil = rs.getLong(rs.getColumnIndex('thresholdSoil'));
       gh.thresholdCO2 = rs.getLong(rs.getColumnIndex('thresholdCO2'));
+      gh.autoStageEnabled = rs.getLong(rs.getColumnIndex('autoStageEnabled')) === 1;
+      gh.nextStageTime = rs.getLong(rs.getColumnIndex('nextStageTime'));
+      gh.plantTime = rs.getLong(rs.getColumnIndex('plantTime'));
       list.push(gh);
     }
     rs.close();
@@ -334,7 +343,10 @@ export class DatabaseManager {
       thresholdHumi: gh.thresholdHumi,
       thresholdLight: gh.thresholdLight,
       thresholdSoil: gh.thresholdSoil,
-      thresholdCO2: gh.thresholdCO2
+      thresholdCO2: gh.thresholdCO2,
+      autoStageEnabled: gh.autoStageEnabled ? 1 : 0,
+      nextStageTime: gh.nextStageTime,
+      plantTime: gh.plantTime
     };
     let predicates = new relationalStore.RdbPredicates('Greenhouse');
     predicates.equalTo('id', gh.id);

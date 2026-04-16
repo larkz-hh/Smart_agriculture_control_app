@@ -46,6 +46,7 @@ struct HorizontalDataCard {
   }
 }
 
+
 @Component
 struct DeviceControlItem {
   @Prop icon: string = '';
@@ -322,9 +323,81 @@ export struct MonitorDetail {
   }
 
   @State styleTimer: number = -1;
+  async checkAndAdvanceStage() {
+    if (!this.ghData.autoStageEnabled || this.ghData.nextStageTime <= 0) return;
 
+    let now = Date.now();
+    if (now >= this.ghData.nextStageTime) {
+      // 时间到了！
+      if (this.ghData.stage < 3) { // 0:育苗, 1:生长, 2:开花, 3:结果
+        let nextStage = this.ghData.stage + 1;
+        let stages = ['育苗期', '生长期', '开花期', '结果期'];
+        let stageName = stages[nextStage];
+
+        promptAction.showToast({ message: `自动流转触发：正在为您规划【${stageName}】方案...` });
+
+        try {
+          let aiResult = await AiService.getPlantInfo(this.ghData.crop, stageName);
+          if (aiResult) {
+            // 1. 更新阶段
+            this.ghData.stage = nextStage;
+            // 2. 提取新阈值 (复用你之前的提取逻辑)
+            let extractNums = (str: string) => {
+              let matches = str.match(/\d+/g); return matches ? matches.map(Number) : [];
+            };
+            let tempNums = extractNums(aiResult.airTemp);
+            if (tempNums.length > 0) this.thresholdTemp = Math.min(50, Math.max(0, Math.max(...tempNums)));
+
+            let humiNums = extractNums(aiResult.airMoisture);
+            if (humiNums.length > 0) this.thresholdHumi = Math.min(100, Math.max(0, Math.min(...humiNums)));
+
+            let soilNums = extractNums(aiResult.soilMoisture);
+            if (soilNums.length > 0) this.thresholdSoil = Math.min(100, Math.max(0, Math.min(...soilNums)));
+
+            let lightNums = extractNums(aiResult.light);
+            if (lightNums.length > 0) this.thresholdLight = Math.min(100000, Math.max(0, Math.min(...lightNums)));
+
+            let co2Nums = extractNums(aiResult.carbonDioxide);
+            if (co2Nums.length > 0) this.thresholdCO2 = Math.min(5000, Math.max(0, Math.max(...co2Nums)));
+
+            // 计算下一次的时间戳 (天数 * 24小时 * 60分 * 60秒 * 1000毫秒)
+            let days = aiResult.durationDays > 0 ? aiResult.durationDays : 15;
+            this.ghData.nextStageTime = Date.now() + (days * 86400000);
+
+            // 测试专用：（1分钟后自动流转）：
+            // this.ghData.nextStageTime = Date.now() + 60000;
+
+            // 下发给设备端
+            let stageCmd = new CmdStage();
+            stageCmd.Stage = this.ghData.stage.toString();
+            this.sendDeviceCmd('Agriculture_Control_Stage', stageCmd);
+            this.saveAndSendThresholds();
+
+            promptAction.showToast({ message: `已自动进入【${stageName}】，下一次变更为 ${days} 天后` });
+          }
+        } catch (e) {
+          console.error('自动流转失败', e);
+        }
+      } else {
+        // 如果已经是最后阶段（结果期），流转结束，自动关闭该功能
+        this.ghData.autoStageEnabled = false;
+        this.ghData.nextStageTime = 0;
+        DatabaseManager.updateGreenhouse(this.ghData);
+        promptAction.showToast({ message: '种植周期已完成！' });
+      }
+    }
+  }
   aboutToAppear() {
+     //优先读本地
+    this.thresholdTemp = this.ghData.thresholdTemp ?? 32;
+    this.thresholdHumi = this.ghData.thresholdHumi ?? 45;
+    this.thresholdLight = this.ghData.thresholdLight ?? 500;
+    this.thresholdSoil = this.ghData.thresholdSoil ?? 20;
+    this.thresholdCO2 = this.ghData.thresholdCO2 ?? 1000;
+    //云端做校验
     this.fetchShadowData();
+    //AI 智能托管
+    this.checkAndAdvanceStage();
     this.styleTimer = setInterval(() => {
       if (!this.isPlaying) return;
       this.forceVideoStyle(this.controller);
@@ -500,14 +573,25 @@ export struct MonitorDetail {
         Scroll() {
           Column() {
             Row() {
-              Column({ space: 4 }) {
+              Column({ space: 6 }) {
+                // 大棚名称
                 Text(this.ghData.name).fontSize(22).fontWeight(FontWeight.Bold)
+
+                Text(`作物: ${this.ghData.crop || '未设置'}`)
+                  .fontSize(14)
+                  .fontColor('#666')
+
                 Row({ space: 8 }) {
-                  Text(`作物: ${this.ghData.crop || '未设置'}`).fontSize(14).fontColor('#666')
                   if (this.ghData.stage !== undefined && this.ghData.stage >= 0) {
-                    Text(['育苗期', '生长期', '开花期', '结果期'][this.ghData.stage])
+                    Text(['🌱 育苗期', '🌿 生长期', '🌸 开花期', '🍅 结果期'][this.ghData.stage])
                       .fontSize(12).fontColor('#00B96B').backgroundColor('#E6F8F0')
-                      .padding({ left: 4, right: 4, top: 2, bottom: 2 }).borderRadius(4)
+                      .padding({ left: 6, right: 6, top: 3, bottom: 3 }).borderRadius(4)
+                  }
+
+                  if (this.ghData.plantTime && this.ghData.plantTime > 0) {
+                    Text(`已种植 ${Math.max(1, Math.ceil((Date.now() - this.ghData.plantTime) / 86400000))} 天`)
+                      .fontSize(12).fontColor('#FF6B6B').backgroundColor('#FFEDED')
+                      .padding({ left: 6, right: 6, top: 3, bottom: 3 }).borderRadius(4)
                   }
                 }
               }.alignItems(HorizontalAlign.Start)
@@ -644,19 +728,83 @@ export struct MonitorDetail {
             Row() {
               Text('自动触发阈值').fontSize(20).fontWeight(FontWeight.Bold)
               Blank()
-
-
-              if (this.isAiLoading) {
-                LoadingProgress().width(20).height(20).color('#00B96B').margin({ right: 15 })
-              } else {
-                Text('✨ 智能推荐').fontColor('#FCC419').fontSize(14).fontWeight(FontWeight.Bold)
-                  .margin({ right: 15 })
-                  .onClick(() => { this.autoSetThresholds(); })
-              }
-
+              // ...
               Text('完成').fontColor('#00B96B').fontSize(16).fontWeight(FontWeight.Medium)
                 .onClick(() => { this.saveAndSendThresholds(); })
             }.width('100%').padding({ top: 50, bottom: 20, left: 20, right: 20 })
+
+            Row() {
+              Column({space: 4}) {
+                Text('🤖 开启AI全生命周期托管').fontSize(15).fontWeight(FontWeight.Bold).fontColor('#333')
+                Text('自动计算当前阶段天数，到期自动进入下一阶段并更新阈值').fontSize(11).fontColor('#999')
+              }.alignItems(HorizontalAlign.Start).layoutWeight(1)
+
+              Toggle({ type: ToggleType.Switch, isOn: this.ghData.autoStageEnabled })
+                .selectedColor('#FCC419')
+                .onChange(async (isOn) => {
+                  this.ghData.autoStageEnabled = isOn;
+                  if (isOn) {
+                    if (this.ghData.stage < 0 || !this.ghData.crop) {
+                      promptAction.showToast({ message: '请先在大棚设置中指定作物和当前生长阶段！' });
+                      this.ghData.autoStageEnabled = false;
+                      return;
+                    }
+                    // 开启时，立即规划当前阶段方案
+                    promptAction.showToast({ message: '正在为您规划当前阶段最佳方案...' });
+                    let stages = ['育苗期', '生长期', '开花期', '结果期'];
+                    let aiResult = await AiService.getPlantInfo(this.ghData.crop, stages[this.ghData.stage]);
+
+                    if (aiResult) {
+                      let extractNums = (str: string) => {
+                        let matches = str.match(/\d+/g); return matches ? matches.map(Number) : [];
+                      };
+                      let tempNums = extractNums(aiResult.airTemp);
+                      if (tempNums.length > 0) this.thresholdTemp = Math.min(50, Math.max(0, Math.max(...tempNums)));
+
+                      let humiNums = extractNums(aiResult.airMoisture);
+                      if (humiNums.length > 0) this.thresholdHumi = Math.min(100, Math.max(0, Math.min(...humiNums)));
+
+                      let soilNums = extractNums(aiResult.soilMoisture);
+                      if (soilNums.length > 0) this.thresholdSoil = Math.min(100, Math.max(0, Math.min(...soilNums)));
+
+                      let lightNums = extractNums(aiResult.light);
+                      if (lightNums.length > 0) this.thresholdLight = Math.min(100000, Math.max(0, Math.min(...lightNums)));
+
+                      let co2Nums = extractNums(aiResult.carbonDioxide);
+                      if (co2Nums.length > 0) this.thresholdCO2 = Math.min(5000, Math.max(0, Math.max(...co2Nums)));
+
+                      // 更新大棚对象的阈值
+                      this.ghData.thresholdTemp = this.thresholdTemp;
+                      this.ghData.thresholdHumi = this.thresholdHumi;
+                      this.ghData.thresholdLight = this.thresholdLight;
+                      this.ghData.thresholdSoil = this.thresholdSoil;
+                      this.ghData.thresholdCO2 = this.thresholdCO2;
+
+                      // 立刻下发新阈值给网关设备
+                      let thresholdCmd = new CmdThreshold();
+                      thresholdCmd.temp = this.thresholdTemp;
+                      thresholdCmd.humi = this.thresholdHumi;
+                      thresholdCmd.light = this.thresholdLight;
+                      thresholdCmd.soil = this.thresholdSoil;
+                      thresholdCmd.co2 = this.thresholdCO2;
+                      this.sendDeviceCmd('Agriculture_Set_Threshold', thresholdCmd);
+
+                      //计算天数并保存到数据库
+                      let days = aiResult.durationDays > 0 ? aiResult.durationDays : 15;
+                      this.ghData.nextStageTime = Date.now() + (days * 86400000);
+
+                      DatabaseManager.updateGreenhouse(this.ghData);
+                      promptAction.showToast({ message: `托管已开启！已同步AI阈值，本阶段将持续 ${days} 天` });
+                    }
+                  } else {
+                    // 关闭托管时，清除时间限制
+                    this.ghData.nextStageTime = 0;
+                    DatabaseManager.updateGreenhouse(this.ghData);
+                    promptAction.showToast({ message: '已关闭全周期托管' });
+                  }
+                })
+            }
+            .width('100%').padding({ left: 20, right: 20, bottom: 15 })
 
             Scroll() {
               Column({ space: 15 }) {
