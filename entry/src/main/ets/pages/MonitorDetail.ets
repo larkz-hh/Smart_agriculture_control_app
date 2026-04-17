@@ -49,7 +49,7 @@ struct HorizontalDataCard {
 
 @Component
 struct DeviceControlItem {
-  @Prop icon: string = '';
+  @Prop icon: Resource;
   @Prop name: string = '';
   @Prop isOn: boolean = false;
   @Prop isAuto: boolean = false;
@@ -61,7 +61,20 @@ struct DeviceControlItem {
   build() {
     Column() {
       Row() {
-        Text(`${this.icon} ${this.name}`).fontSize(16).fontWeight(FontWeight.Medium)
+        Row({ space: 8 }) {
+          if (this.isOn) {
+            Image(this.icon)
+              .width(22)
+              .height(22)
+          } else {
+            Image(this.icon)
+              .width(22)
+              .height(22)
+              .fillColor('#999999')
+          }
+          Text(this.name).fontSize(16).fontWeight(FontWeight.Medium)
+        }
+
         if (!this.isSystemOnline) {
           Row({ space: 4 }) {
             Circle({ width: 6, height: 6 }).fill('#FF4D4F')
@@ -664,7 +677,8 @@ export struct MonitorDetail {
 
             Column() {
               DeviceControlItem({
-                icon: '💦', name: '滴灌水泵', isOn: this.pumpOpen, isAuto: this.isAutoMode,
+                icon: $r('app.media.ic_pump'),
+                name: '滴灌水泵', isOn: this.pumpOpen, isAuto: this.isAutoMode,
                 autoText: `当土壤或空气湿度低于设定值时启动`, statusStr: this.pumpStatusStr, isSystemOnline: this.isSystemOnline,
                 onChangeCb: (val: boolean) => {
                   this.pumpOpen = val;
@@ -674,7 +688,8 @@ export struct MonitorDetail {
                 }
               })
               DeviceControlItem({
-                icon: '☀️', name: 'LED补光灯', isOn: this.ledOpen, isAuto: this.isAutoMode,
+                icon: $r('app.media.ic_led'),
+                name: 'LED补光灯', isOn: this.ledOpen, isAuto: this.isAutoMode,
                 autoText: `当光照强度低于 ${this.thresholdLight}Lx 时启动`, statusStr: this.ledStatusStr, isSystemOnline: this.isSystemOnline,
                 onChangeCb: (val: boolean) => {
                   this.ledOpen = val;
@@ -684,7 +699,8 @@ export struct MonitorDetail {
                 }
               })
               DeviceControlItem({
-                icon: '💨', name: '通风排气扇', isOn: this.fanOpen, isAuto: this.isAutoMode,
+                icon: $r('app.media.ic_fan'),
+                name: '通风排气扇', isOn: this.fanOpen, isAuto: this.isAutoMode,
                 autoText: `当温度或CO2浓度高于设定值时启动`, statusStr: this.fanStatusStr, isSystemOnline: this.isSystemOnline,
                 onChangeCb: (val: boolean) => {
                   this.fanOpen = val;
@@ -694,7 +710,8 @@ export struct MonitorDetail {
                 }
               })
               DeviceControlItem({
-                icon: '💨', name: '农药喷湿器', isOn: this.humidifierOpen, isAuto: this.isAutoMode,
+                icon: $r('app.media.ic_humidifier'),
+                name: '农药喷湿器', isOn: this.humidifierOpen, isAuto: this.isAutoMode,
                 autoText: `手动接管模式下自由控制`, statusStr: this.humidifierStatusStr, isSystemOnline: this.isSystemOnline,
                 onChangeCb: (val: boolean) => {
                   this.humidifierOpen = val;
@@ -728,15 +745,49 @@ export struct MonitorDetail {
             Row() {
               Text('自动触发阈值').fontSize(20).fontWeight(FontWeight.Bold)
               Blank()
-              // ...
+
+
+              if (this.isAiLoading) {
+                LoadingProgress().width(20).height(20).color('#00B96B').margin({ right: 15 })
+              } else {
+                Text('✨ 智能推荐')
+                // 如果开启了托管，按钮变灰；否则为黄色
+                  .fontColor(this.ghData.autoStageEnabled ? '#CCCCCC' : '#FCC419')
+                  .fontSize(14).fontWeight(FontWeight.Bold)
+                  .margin({ right: 15 })
+                  .onClick(() => {
+                    // 判断：如果开启了全周期托管，则拦截点击并提示
+                    if (this.ghData.autoStageEnabled) {
+                      promptAction.showToast({ message: '当前处于全周期托管中，系统会自动管理阈值，无需手动推荐' });
+                      return;
+                    }
+                    // 没开启托管，正常调用之前的推荐接口
+                    this.autoSetThresholds();
+                  })
+              }
+
               Text('完成').fontColor('#00B96B').fontSize(16).fontWeight(FontWeight.Medium)
                 .onClick(() => { this.saveAndSendThresholds(); })
             }.width('100%').padding({ top: 50, bottom: 20, left: 20, right: 20 })
 
             Row() {
               Column({space: 4}) {
-                Text('🤖 开启AI全生命周期托管').fontSize(15).fontWeight(FontWeight.Bold).fontColor('#333')
-                Text('自动计算当前阶段天数，到期自动进入下一阶段并更新阈值').fontSize(11).fontColor('#999')
+
+                Row({ space: 6 }) {
+                  Image($r('app.media.ai_chat_icon'))
+                    .width(18)
+                    .height(18)
+                    .objectFit(ImageFit.Contain)
+
+                  Text('开启AI全生命周期托管')
+                    .fontSize(15)
+                    .fontWeight(FontWeight.Bold)
+                    .fontColor('#333')
+                }
+
+                Text('自动计算当前阶段天数，到期自动进入下一阶段并更新阈值')
+                  .fontSize(11)
+                  .fontColor('#999')
               }.alignItems(HorizontalAlign.Start).layoutWeight(1)
 
               Toggle({ type: ToggleType.Switch, isOn: this.ghData.autoStageEnabled })
