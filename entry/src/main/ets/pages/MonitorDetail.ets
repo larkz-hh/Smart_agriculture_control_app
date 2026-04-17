@@ -1,10 +1,11 @@
 import { promptAction } from '@kit.ArkUI';
-import { GreenhouseModel } from '../model/GreenhouseModel';
+import { EnvRecordModel, GreenhouseModel } from '../model/GreenhouseModel';
 import { IotService } from '../services/iot/IotService';
 import { DatabaseManager } from '../data/DatabaseManager';
 import window from '@ohos.window';
 import { webview } from '@kit.ArkWeb';
 import { AiService } from '../services/ai/AIService';
+import { Chart } from '../components/Chart';
 
 export class CmdStage { Stage: string = '0'; }
 export class CmdMode { Mode: string = ''; }
@@ -57,6 +58,7 @@ struct DeviceControlItem {
   @Prop statusStr: string = '';
   @Prop isSystemOnline: boolean = false;
   onChangeCb: (val: boolean) => void = () => {};
+  onTimerCb: () => void = () => {};
 
   build() {
     Column() {
@@ -86,6 +88,17 @@ struct DeviceControlItem {
 
         if (this.isAuto) {
           Text('由系统自动托管').fontSize(12).fontColor('#00B96B').margin({ right: 10 })
+        } else {
+          Text('⏱️定时')
+            .fontSize(12)
+            .fontColor('#2196F3')
+            .backgroundColor('#E3F2FD')
+            .padding({left: 8, right: 8, top: 4, bottom: 4})
+            .borderRadius(12)
+            .margin({ right: 10 })
+            .onClick(() => {
+              this.onTimerCb();
+            })
         }
         Toggle({ type: ToggleType.Switch, isOn: this.isOn })
           .selectedColor('#00B96B')
@@ -231,6 +244,79 @@ export struct MonitorDetail {
   @State thresholdCO2: number = 1000;
   @State isPlaying: boolean = false;
   @State isAiLoading: boolean = false;
+  @State chartRecords: EnvRecordModel[] = [];
+  @State currentMetric: string = 'temp'; // 当前选中的指标
+  @State currentTimeRange: number = 24; // 24小时 / 168小时(7天)
+  @State metricColor: string = '#FF6B6B'; // 当前折线颜色
+  async loadChartData() {
+    let mockData: EnvRecordModel[] = [];
+    let now = new Date();
+    // 获取今天 00:00:00 的绝对时间戳
+    let startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).getTime();
+
+    if (this.currentTimeRange === 24) {
+      //24小时模式：强制从 00:00 到 24:00， 25 个点
+      for (let i = 0; i <= 24; i++) {
+        let r = new EnvRecordModel();
+        r.timestamp = startOfToday + i * 3600000;
+
+        let h = i;
+        let isDay = h >= 6 && h <= 18;
+
+
+        if (isDay) {
+          let sun = Math.sin(((h - 6) / 12) * Math.PI);
+          r.light = Math.floor(sun * 65000 + Math.random() * 3000);
+        } else {
+          r.light = Math.floor(Math.random() * 20);
+        }
+
+        let baseTemp = isDay ? 26 : 17;
+        let tempWave = isDay ? Math.sin(((h - 6) / 12) * Math.PI) * 6 : Math.random() * 2;
+        r.temp = Number((baseTemp + tempWave + Math.random() * 1.5).toFixed(1));
+
+        let baseHumi = isDay ? 65 : 88;
+        r.humi = Number((baseHumi - (r.temp - 20) * 1.2 + Math.random() * 4).toFixed(1));
+
+        r.soil = Number((48 + Math.sin(i/2) * 3 + Math.random() * 2).toFixed(1));
+
+        let baseCo2 = isDay ? 420 : 850;
+        r.co2 = Math.floor(baseCo2 + Math.random() * 60);
+
+        mockData.push(r);
+      }
+    } else {
+      // 7天模式：模拟日均值/日最高值的宏观趋势
+      for (let i = 7; i >= 0; i--) {
+        let r = new EnvRecordModel();
+        // 每天取一个点代表当天的聚合数据
+        r.timestamp = startOfToday - i * 86400000 + 12 * 3600000;
+
+        // 模拟前几天是阴天，这两天放晴（光照日最高值）
+        r.light = i > 2 ? Math.floor(15000 + Math.random() * 5000) : Math.floor(60000 + Math.random() * 5000);
+        // 模拟最近一周气温逐渐回暖（日均温）
+        r.temp = Number((20 + (7 - i) * 1.5 + Math.random() * 2).toFixed(1));
+        // 湿度跟温度反相关，逐渐降低
+        r.humi = Number((75 - (7 - i) * 2 + Math.random() * 3).toFixed(1));
+        // 模拟土壤湿度连续几天慢慢干涸，突然在昨天(i=1)浇了水，飙升的趋势
+        if (i > 1) {
+          r.soil = Number((50 - (7 - i) * 4 + Math.random() * 2).toFixed(1)); // 一天比一天干
+        } else {
+          r.soil = Number((65 + Math.random() * 2).toFixed(1)); // 刚浇完水
+        }
+        // CO2日均值比较平稳
+        r.co2 = Math.floor(500 + Math.random() * 30);
+
+        mockData.push(r);
+      }
+    }
+
+    this.chartRecords = mockData;
+
+
+    // if (!this.ghData.id) return;
+    // this.chartRecords = await DatabaseManager.getEnvRecords(this.ghData.id, this.currentTimeRange);
+  }
   async autoSetThresholds() {
     if (!this.ghData.crop || this.ghData.crop.trim() === '') {
       promptAction.showToast({ message: '请先点击大棚页面右上角齿轮图标设置种植作物！' });
@@ -277,7 +363,7 @@ export struct MonitorDetail {
         let co2Nums = extractNums(aiResult.carbonDioxide);
         if (co2Nums.length > 0) this.thresholdCO2 = Math.min(5000, Math.max(0, Math.max(...co2Nums)));
 
-        promptAction.showToast({ message: '✨ 已根据 AI 推荐更新阈值，请检查后点击“完成”保存' });
+        promptAction.showToast({ message: '✨ 已自动推荐更新阈值，请检查后点击“完成”保存' });
       } else {
         promptAction.showToast({ message: 'AI 分析失败或网络超时' });
       }
@@ -298,6 +384,78 @@ export struct MonitorDetail {
         promptAction.showToast({ message: `${commandName} 指令执行异常，请检查设备。` });
       }
     });
+  }
+  @State activeTimers: Map<string, number> = new Map();
+
+  // 唤起系统时间选择器，并计算延迟时间
+  showCustomTimerDialog(deviceName: string, cmdKey: string, onCmdVal: string, offCmdVal: string) {
+    promptAction.showActionMenu({
+      title: `请选择 ${deviceName} 定时操作`,
+      buttons: [
+        { text: '定时开启', color: '#00B96B' },
+        { text: '定时关闭', color: '#FF4D4F' }
+      ]
+    }).then((data) => {
+      let isTurnOn = data.index === 0;
+      let actionText = isTurnOn ? '开启' : '关闭';
+      let cmdValue = isTurnOn ? onCmdVal : offCmdVal;
+
+      // 调起 时间滑动选择器
+      TimePickerDialog.show({
+        useMilitaryTime: true, // 24小时制
+        onAccept: (value: TimePickerResult) => {
+          let now = new Date();
+          let target = new Date();
+          target.setHours(value.hour, value.minute, 0, 0);
+
+          //时间比现在还早，默认明天
+          if (target.getTime() <= now.getTime()) {
+            target.setDate(target.getDate() + 1);
+          }
+
+          let delayMs = target.getTime() - now.getTime();
+          let timeStr = `${value.hour < 10 ? '0'+value.hour : value.hour}:${value.minute < 10 ? '0'+value.minute : value.minute}`;
+
+          // 组装对应的命令对象
+          let cmdObj: Object;
+          if (cmdKey === 'Agriculture_Control_Pump') {
+            let c = new CmdPump(); c.Pump = cmdValue; cmdObj = c;
+          } else if (cmdKey === 'Agriculture_Control_Led') {
+            let c = new CmdLed(); c.Led = cmdValue; cmdObj = c;
+          } else if (cmdKey === 'Agriculture_Control_Fan') {
+            let c = new CmdFan(); c.Fan = cmdValue; cmdObj = c;
+          } else {
+            let c = new CmdHumidifier(); c.Humidifier = cmdValue; cmdObj = c;
+          }
+
+          this.executeSchedule(deviceName, cmdKey, cmdObj, delayMs, `${timeStr} ${actionText}`);
+        }
+      });
+    });
+  }
+
+  // 执行倒计时发送
+  executeSchedule(deviceName: string, cmdKey: string, cmdObject: Object, delayMs: number, desc: string) {
+    promptAction.showToast({ message: `设置成功：${deviceName} 将于 ${desc}` });
+
+    let timerId = setTimeout(() => {
+      if (this.isAutoMode) {
+        promptAction.showDialog({
+          title: '定时任务已取消',
+          message: `原定于执行的 [${deviceName}] 控制命令，因当前大棚已切换为【自动接管】模式被拦截，防止冲突。`,
+          buttons: [{ text: '知道了', color: '#00B96B' }]
+        });
+        return;
+      }
+      this.sendDeviceCmd(cmdKey, cmdObject);
+      promptAction.showToast({ message: `⏰ 定时任务触发：${deviceName} 已${desc.includes('开启')?'开启':'关闭'}` });
+      this.activeTimers.delete(cmdKey);
+    }, delayMs);
+
+    if (this.activeTimers.has(cmdKey)) {
+      clearTimeout(this.activeTimers.get(cmdKey));
+    }
+    this.activeTimers.set(cmdKey, timerId);
   }
 
   saveAndSendThresholds() {
@@ -377,7 +535,7 @@ export struct MonitorDetail {
             let days = aiResult.durationDays > 0 ? aiResult.durationDays : 15;
             this.ghData.nextStageTime = Date.now() + (days * 86400000);
 
-            // 测试专用：（1分钟后自动流转）：
+            // 测试
             // this.ghData.nextStageTime = Date.now() + 60000;
 
             // 下发给设备端
@@ -411,6 +569,7 @@ export struct MonitorDetail {
     this.fetchShadowData();
     //AI 智能托管
     this.checkAndAdvanceStage();
+    this.loadChartData();
     this.styleTimer = setInterval(() => {
       if (!this.isPlaying) return;
       this.forceVideoStyle(this.controller);
@@ -506,6 +665,17 @@ export struct MonitorDetail {
         this.humidifierOpen=res.data.HumidifierStatus==='ON';
 
         this.isAutoMode = res.data.Mode === 'auto';
+        if (this.ghData.id) {
+          await DatabaseManager.insertEnvRecord(
+            this.ghData.id,
+            Number(this.airTemp),
+            Number(this.airHum),
+            Number(this.soilHum),
+            Number(this.lightLux),
+            Number(this.co2)
+          );
+          this.loadChartData();
+        }
       } else {
         this.isSystemOnline = false;
         this.airTemp = '0';
@@ -685,7 +855,8 @@ export struct MonitorDetail {
                   let pumpCmd = new CmdPump();
                   pumpCmd.Pump = val ? 'ON' : 'OFF';
                   this.sendDeviceCmd('Agriculture_Control_Pump', pumpCmd);
-                }
+                },
+                onTimerCb: () => { this.showCustomTimerDialog('滴灌水泵', 'Agriculture_Control_Pump', 'ON', 'OFF'); }
               })
               DeviceControlItem({
                 icon: $r('app.media.ic_led'),
@@ -696,7 +867,8 @@ export struct MonitorDetail {
                   let ledCmd = new CmdLed();
                   ledCmd.Led = val ? 'ON' : 'OFF';
                   this.sendDeviceCmd('Agriculture_Control_Led', ledCmd);
-                }
+                },
+                onTimerCb: () => { this.showCustomTimerDialog('LED补光灯', 'Agriculture_Control_Led', 'ON', 'OFF'); }
               })
               DeviceControlItem({
                 icon: $r('app.media.ic_fan'),
@@ -707,7 +879,8 @@ export struct MonitorDetail {
                   let fanCmd = new CmdFan();
                   fanCmd.Fan = val ? 'ON' : 'OFF';
                   this.sendDeviceCmd('Agriculture_Control_Fan', fanCmd);
-                }
+                },
+                onTimerCb: () => { this.showCustomTimerDialog('通风排气扇', 'Agriculture_Control_Fan', 'ON', 'OFF'); }
               })
               DeviceControlItem({
                 icon: $r('app.media.ic_humidifier'),
@@ -718,12 +891,56 @@ export struct MonitorDetail {
                   let humiCmd = new CmdHumidifier();
                   humiCmd.Humidifier = val ? 'ON' : 'OFF';
                   this.sendDeviceCmd('Agriculture_Control_Humidifier', humiCmd);
-                }
+                },
+                onTimerCb: () => { this.showCustomTimerDialog('农药喷湿器', 'Agriculture_Control_Humidifier', 'ON', 'OFF'); }
               })
             }.padding({ left: 15, right: 15, bottom: 40 })
+            Column() {
+              Row() {
+                Text('监测统计').fontSize(16).fontWeight(FontWeight.Bold)
+                Blank()
+                Select([{value:'最近24小时'}, {value:'最近7天'}])
+                  .selected(this.currentTimeRange === 24 ? 0 : 1)
+                  .value(this.currentTimeRange === 24 ? '最近24小时' : '最近7天')
+                  .onSelect((idx) => {
+                    this.currentTimeRange = idx === 0 ? 24 : 168; // 168小时即7天
+                    this.loadChartData();
+                  })
+              }.width('100%').padding({ bottom: 10 })
+
+              // 指标切换栏
+              // 指标切换栏
+              Row({ space: 8 }) { // 间距调小一点点，保证5个按钮放得下
+                Text('温度').fontSize(13).fontColor(this.currentMetric==='temp'?'#FFF':'#666').backgroundColor(this.currentMetric==='temp'?'#FF6B6B':'#EEE').padding({left:10,right:10,top:5,bottom:5}).borderRadius(12)
+                  .onClick(()=>{ this.currentMetric='temp'; this.metricColor='#FF6B6B'; })
+
+                Text('湿度').fontSize(13).fontColor(this.currentMetric==='humi'?'#FFF':'#666').backgroundColor(this.currentMetric==='humi'?'#4DABF7':'#EEE').padding({left:10,right:10,top:5,bottom:5}).borderRadius(12)
+                  .onClick(()=>{ this.currentMetric='humi'; this.metricColor='#4DABF7'; })
+
+                Text('土壤').fontSize(13).fontColor(this.currentMetric==='soil'?'#FFF':'#666').backgroundColor(this.currentMetric==='soil'?'#8CE200':'#EEE').padding({left:10,right:10,top:5,bottom:5}).borderRadius(12)
+                  .onClick(()=>{ this.currentMetric='soil'; this.metricColor='#8CE200'; })
+
+                Text('光照').fontSize(13).fontColor(this.currentMetric==='light'?'#FFF':'#666').backgroundColor(this.currentMetric==='light'?'#FCC419':'#EEE').padding({left:10,right:10,top:5,bottom:5}).borderRadius(12)
+                  .onClick(()=>{ this.currentMetric='light'; this.metricColor='#FCC419'; })
+                Text('CO2').fontSize(13).fontColor(this.currentMetric==='co2'?'#FFF':'#666').backgroundColor(this.currentMetric==='co2'?'#A9A9A9':'#EEE').padding({left:10,right:10,top:5,bottom:5}).borderRadius(12)
+                  .onClick(()=>{ this.currentMetric='co2'; this.metricColor='#A9A9A9'; })
+              }.width('100%').margin({ bottom: 15 })
+
+              Chart({
+                records: this.chartRecords,
+                metricType: this.currentMetric,
+                colorHex: this.metricColor
+              })
+            }
+            .width('100%')
+            .padding({ left: 15, right: 15, top: 20, bottom: 40 })
+            .backgroundColor(Color.White)
+            .borderRadius({ topLeft: 16, topRight: 16 })
+            .shadow({ radius: 10, color: '#05000000', offsetY: -5 })
 
           }.width('100%')
         }
+        .scrollBar(BarState.Off)
         .width('100%').height('100%').backgroundColor('#F5F7FA')
         .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
 

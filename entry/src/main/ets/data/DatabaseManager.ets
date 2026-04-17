@@ -2,7 +2,7 @@ import relationalStore from '@ohos.data.relationalStore';
 import { common } from '@kit.AbilityKit';
 import { MessageModel, SessionItem } from '../model/MessageModel';
 import { PlantRecord, RecordGroup } from '../model/RecordModel';
-import { GreenhouseModel } from '../model/GreenhouseModel';
+import { EnvRecordModel, GreenhouseModel } from '../model/GreenhouseModel';
 import { AlertMessageModel } from '../model/AlertMessageModel';
 
 export class DatabaseManager {
@@ -65,6 +65,16 @@ export class DatabaseManager {
       description TEXT,
       timestamp INTEGER
       )`;
+    const createEnvRecordTable = `CREATE TABLE IF NOT EXISTS EnvRecord (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      ghId INTEGER,
+      temp REAL,
+      humi REAL,
+      soil REAL,
+      light REAL,
+      co2 REAL,
+      timestamp INTEGER
+    )`;
 
     try {
       DatabaseManager.rdbStore = await relationalStore.getRdbStore(context, config);
@@ -74,6 +84,7 @@ export class DatabaseManager {
       await DatabaseManager.rdbStore.executeSql(createRecordGroupTable);
       await DatabaseManager.rdbStore.executeSql(createPlantRecordTable);
       await DatabaseManager.rdbStore.executeSql(createAlertTable);
+      await DatabaseManager.rdbStore.executeSql(createEnvRecordTable);
 
       console.info('数据库初始化成功');
     } catch (e) {
@@ -423,5 +434,56 @@ export class DatabaseManager {
     let predicates = new relationalStore.RdbPredicates('AlertMessage');
     predicates.equalTo('isRead', 0);
     await DatabaseManager.rdbStore.update(bucket, predicates);
+  }
+
+  static async insertEnvRecord(ghId: number, temp: number, humi: number, soil: number, light: number, co2: number): Promise<void> {
+    if (!DatabaseManager.rdbStore) return;
+    let bucket: relationalStore.ValuesBucket = {
+      ghId: ghId,
+      temp: temp,
+      humi: humi,
+      soil: soil,
+      light: light,
+      co2: co2,
+      timestamp: Date.now()
+    };
+    try {
+      await DatabaseManager.rdbStore.insert('EnvRecord', bucket);
+    } catch (e) {
+      console.error('插入环境记录失败:', JSON.stringify(e));
+    }
+  }
+
+  // 获取指定时间段的历史记录
+  static async getEnvRecords(ghId: number, hoursAgo: number): Promise<EnvRecordModel[]> {
+    if (!DatabaseManager.rdbStore) return [];
+    let startTime = Date.now() - (hoursAgo * 60 * 60 * 1000); // 计算出多少小时前的时间戳
+
+    let predicates = new relationalStore.RdbPredicates('EnvRecord');
+    predicates.equalTo('ghId', ghId);
+    predicates.greaterThanOrEqualTo('timestamp', startTime);
+    predicates.orderByAsc('timestamp'); // 按时间正序排列（从早到晚，画折线图需要）
+
+    try {
+      let rs = await DatabaseManager.rdbStore.query(predicates);
+      let list: EnvRecordModel[] = [];
+      while (rs.goToNextRow()) {
+        let record = new EnvRecordModel();
+        record.id = rs.getLong(rs.getColumnIndex('id'));
+        record.ghId = rs.getLong(rs.getColumnIndex('ghId'));
+        record.temp = rs.getDouble(rs.getColumnIndex('temp'));
+        record.humi = rs.getDouble(rs.getColumnIndex('humi'));
+        record.soil = rs.getDouble(rs.getColumnIndex('soil'));
+        record.light = rs.getDouble(rs.getColumnIndex('light'));
+        record.co2 = rs.getDouble(rs.getColumnIndex('co2'));
+        record.timestamp = rs.getLong(rs.getColumnIndex('timestamp'));
+        list.push(record);
+      }
+      rs.close();
+      return list;
+    } catch (e) {
+      console.error('获取环境记录失败:', JSON.stringify(e));
+      return [];
+    }
   }
 }

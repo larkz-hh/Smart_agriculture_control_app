@@ -15,3 +15,13 @@ export class GreenhouseModel {
   nextStageTime: number = 0;  // 下一个阶段开始的绝对时间戳（毫秒）
   plantTime: number = 0
 }
+export class EnvRecordModel {
+  id: number = 0;
+  ghId: number = 0;
+  temp: number = 0;
+  humi: number = 0;
+  soil: number = 0;
+  light: number = 0;
+  co2: number = 0;
+  timestamp: number = 0;
+}
