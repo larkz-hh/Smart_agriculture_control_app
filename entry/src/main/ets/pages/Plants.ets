@@ -62,7 +62,7 @@ export struct Plants {
           Text('告诉我们你种了什么，AI专家为你提供最佳环境参数')
             .fontSize(12).fontColor('#999').margin({ bottom: 5, top: 10 })
 
-          TextInput({ placeholder: '番茄、草莓、水稻...', text: this.plantName })
+          TextInput({ placeholder: '植物：番茄、草莓、水稻...', text: this.plantName })
             .height(50).backgroundColor('#F5F5F5')
             .onChange((val) => this.plantName = val)
 
@@ -70,7 +70,7 @@ export struct Plants {
             .height(50).backgroundColor('#F5F5F5')
             .onChange((val) => this.growthStage = val)
 
-          Button('AI 智能分析查询')
+          Button('智能分析查询')
             .width('100%')
             .height(45)
             .backgroundColor('#00B96B')

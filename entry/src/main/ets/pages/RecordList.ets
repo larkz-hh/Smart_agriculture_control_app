@@ -105,6 +105,7 @@ export struct RecordList {
               })
             })
           }.width('100%').height('100%').padding(15)
+          .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.BOTTOM])
         }
 
         // 悬浮添加按钮
@@ -117,6 +118,7 @@ export struct RecordList {
         .onClick(() => { this.dialogController.open(); })
       }
       .width('100%').height('100%').backgroundColor('#F5F7FA')
+      .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.BOTTOM])
     }
     .title('种植记录分组')
     .onReady((context) => { this.pathStack = context.pathStack; })

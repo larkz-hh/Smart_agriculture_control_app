@@ -55,7 +55,11 @@ export struct AlertList {
                     Text(this.formatTime(item.timestamp)).fontSize(12).fontColor('#999')
                   }.width('100%')
 
-                  Text(item.content).fontSize(14).fontColor('#333').lineHeight(20).width('100%')
+                  Text(item.content.replace(/；/g, '；\n').replace(/;/g, ';\n'))
+                    .fontSize(14)
+                    .fontColor('#333')
+                    .lineHeight(24)
+                    .width('100%')
                 }
                 .padding(15).backgroundColor(Color.White).borderRadius(12)
                 .shadow({ radius: 5, color: '#0A000000', offsetY: 2 })
@@ -64,7 +68,7 @@ export struct AlertList {
               // 左滑删除
               .swipeAction({ end: this.DeleteButton(item) })
             })
-          }.width('100%').layoutWeight(1)
+          }.width('100%').layoutWeight(1) .scrollBar(BarState.Off)
         }
       }.width('100%').height('100%').backgroundColor('#F5F7FA')
     }

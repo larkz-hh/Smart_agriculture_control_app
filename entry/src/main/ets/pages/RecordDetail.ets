@@ -202,6 +202,7 @@ export struct RecordDetail {
         }
       }
       .width('100%').height('100%').backgroundColor('#F5F7FA')
+      .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.BOTTOM])
     }
     .title(this.groupName) // 标题栏显示组名
     .onReady((context) => {
