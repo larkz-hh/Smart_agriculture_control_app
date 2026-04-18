@@ -68,7 +68,13 @@ class IamAuth {
 class IamAuthRequest {
   auth: IamAuth = new IamAuth();
 }
-
+export class DeviceInfo {
+  device_id: string = '';
+  device_name: string = '';
+}
+export class DeviceListResponse {
+  devices?: DeviceInfo[];
+}
 // 下发命令的 Body 结构定义
 export class DeviceCommandBody {
   service_id: string = 'Agriculture';
@@ -83,7 +89,7 @@ export class IotService {
 
   // 提取设备命令下发的基础 URL
   private static readonly IOT_COMMAND_URL = `https://b6c2a407d5.st1.iotda-app.cn-south-1.myhuaweicloud.com/v5/iot/${IotConfig.PROJECT_ID}/devices/%s/commands`;
-
+  private static readonly IOT_DEVICES_URL = `https://b6c2a407d5.st1.iotda-app.cn-south-1.myhuaweicloud.com/v5/iot/${IotConfig.PROJECT_ID}/devices`;
   private static cachedToken: string = '';
   private static tokenExpireTime: number = 0;
 
@@ -261,4 +267,41 @@ export class IotService {
 
     return result;
   }
+  /**
+   * 获取云端设备列表
+   */
+  static async getDeviceList(): Promise<DeviceInfo[]> {
+    let token = await IotService.getValidToken();
+    if (!token) return [];
+
+    let httpRequest = http.createHttp();
+    let reqHeaders: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'X-Auth-Token': token,
+      'Instance-Id': IotConfig.INSTANCE_ID
+    };
+
+    try {
+      let response = await httpRequest.request(IotService.IOT_DEVICES_URL, {
+        method: http.RequestMethod.GET,
+        header: reqHeaders,
+        connectTimeout: 5000,
+        readTimeout: 5000
+      });
+
+      if (response.responseCode === 200) {
+        let resStr = typeof response.result === 'string' ? response.result : JSON.stringify(response.result);
+        let jsonObj = JSON.parse(resStr) as DeviceListResponse;
+        return jsonObj.devices || [];
+      } else {
+        console.error('查询设备列表失败:', response.responseCode, response.result);
+      }
+    } catch (e) {
+      console.error('查询设备列表异常:', JSON.stringify(e));
+    } finally {
+      httpRequest.destroy();
+    }
+    return [];
+  }
+
 }

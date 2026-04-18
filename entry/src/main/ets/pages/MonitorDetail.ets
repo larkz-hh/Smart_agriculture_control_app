@@ -1,6 +1,6 @@
 import { promptAction } from '@kit.ArkUI';
 import { EnvRecordModel, GreenhouseModel } from '../model/GreenhouseModel';
-import { IotService } from '../services/iot/IotService';
+import { DeviceInfo, IotService } from '../services/iot/IotService';
 import { DatabaseManager } from '../data/DatabaseManager';
 import window from '@ohos.window';
 import { webview } from '@kit.ArkWeb';
@@ -125,14 +125,70 @@ struct EditGreenhouseDialog {
   @Link ghData: GreenhouseModel;
   confirmAction: () => void = () => {}
 
+  // 存储云端查询下来的设备列表
+  @State remoteDevices: DeviceInfo[] = [];
+
+  aboutToAppear() {
+    // 弹窗打开时，自动去云端拉取已有设备
+    IotService.getDeviceList().then(res => {
+      this.remoteDevices = res;
+    });
+  }
+
+  @Builder
+  DeviceMenuBuilder() {
+    Menu() {
+      if (this.remoteDevices.length === 0) {
+        MenuItem({ content: '正在加载或无设备...' })
+      } else {
+        ForEach(this.remoteDevices, (dev: DeviceInfo, index: number) => {
+          MenuItem() {
+            Column() {
+              Text(`${dev.device_name} \n(ID: ${dev.device_id})`)
+                .fontSize(15)
+                .fontColor('#333')
+                .width('100%')
+                .padding({ top: 12, bottom: 12 })
+
+              if (index < this.remoteDevices.length - 1) {
+                Divider()
+                  .strokeWidth(1)
+                  .color('#ffcac7c7')
+              }
+            }.width('100%')
+          }
+          .onClick(() => {
+            // 选中后，直接自动填充 ID
+            this.ghData.deviceId = dev.device_id;
+            if (!this.ghData.name) {
+              this.ghData.name = dev.device_name;
+            }
+          })
+        })
+      }
+    }
+  }
+
   build() {
     Column({ space: 15 }) {
       Text('编辑大棚信息').fontSize(20).fontWeight(FontWeight.Bold)
 
       TextInput({ placeholder: '大棚名称 (必填)', text: this.ghData.name })
         .onChange((val) => this.ghData.name = val)
-      TextInput({ placeholder: '网关设备ID (必填)', text: this.ghData.deviceId })
-        .onChange((val) => this.ghData.deviceId = val)
+      Stack({ alignContent: Alignment.End }) {
+        TextInput({ placeholder: '网关设备ID (必填)', text: this.ghData.deviceId })
+          .onChange((val) => this.ghData.deviceId = val)
+          .width('100%')
+
+        // 箭头触发区域
+        Row() {
+          Text('▼')
+            .fontSize(12)
+            .fontColor('#999')
+        }
+        .padding({ left: 15, right: 15, top: 12, bottom: 12 }) // 给足点击区域
+        .bindMenu(this.DeviceMenuBuilder()) // 绑定菜单
+      }.width('100%')
       TextInput({ placeholder: '种植作物 (可选)', text: this.ghData.crop })
         .onChange((val) => this.ghData.crop = val)
 
