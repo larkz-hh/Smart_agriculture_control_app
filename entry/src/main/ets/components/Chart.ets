@@ -106,6 +106,12 @@ export struct Chart {
 
     maxVal = maxVal + range * 0.20;
     minVal = minVal - range * 0.15;
+    if (this.metricType === 'humi' || this.metricType === 'soil') {
+      if (maxVal > 100) maxVal = 100;
+      if (minVal < 0) minVal = 0;
+    } else if (this.metricType === 'light' || this.metricType === 'co2') {
+      if (minVal < 0) minVal = 0;
+    }
 
     let paddingLeft = 65;
     let paddingRight = 20;
@@ -127,8 +133,11 @@ export struct Chart {
       let val = maxVal - i * ((maxVal - minVal) / 4);
 
       this.ctx.fillStyle = '#000000';
-      // 数值很大时（比如光照）不要带小数
-      let labelVal = val > 100 ? Math.round(val).toString() : val.toFixed(1);
+
+      let labelVal = (this.metricType === 'light' || this.metricType === 'co2')
+        ? Math.round(val).toString()
+        : val.toFixed(1);
+
       this.ctx.fillText(labelVal + unit, paddingLeft - 8, y);
 
       this.ctx.strokeStyle = '#EEEEEE';
@@ -211,7 +220,9 @@ export struct Chart {
       // 只在有时间刻度的地方，或者是终点时，才绘制上方具体数值
       if (i % step === 0 || i === points.length - 1) {
         this.ctx.fillStyle = this.colorHex;
-        let displayVal = p.val > 100 ? Math.round(p.val).toString() : p.val.toFixed(1);
+        let displayVal = (this.metricType === 'light' || this.metricType === 'co2')
+          ? Math.round(p.val).toString()
+          : p.val.toFixed(1);
         this.ctx.fillText(displayVal, p.x, p.y - 8);
       }
     });

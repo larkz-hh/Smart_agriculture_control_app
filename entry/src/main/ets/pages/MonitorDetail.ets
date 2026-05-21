@@ -64,16 +64,18 @@ struct DeviceControlItem {
     Column() {
       Row() {
         Row({ space: 8 }) {
-          if (this.isOn) {
+          if (this.isOn || this.isAuto) {
             Image(this.icon)
               .width(22)
               .height(22)
           } else {
+            // 只有在“手动干预”且“关闭”的情况下，才显示灰色图标
             Image(this.icon)
               .width(22)
               .height(22)
               .fillColor('#999999')
           }
+
           Text(this.name).fontSize(16).fontWeight(FontWeight.Medium)
         }
 
@@ -100,6 +102,7 @@ struct DeviceControlItem {
               this.onTimerCb();
             })
         }
+
         Toggle({ type: ToggleType.Switch, isOn: this.isOn })
           .selectedColor('#00B96B')
           .enabled(!this.isAuto)
@@ -118,7 +121,6 @@ struct DeviceControlItem {
     .width('100%').padding(16).backgroundColor(Color.White).borderRadius(12).margin({ bottom: 10 })
   }
 }
-
 @CustomDialog
 struct EditGreenhouseDialog {
   controller?: CustomDialogController
@@ -171,9 +173,9 @@ struct EditGreenhouseDialog {
 
   build() {
     Column({ space: 15 }) {
-      Text('编辑大棚信息').fontSize(20).fontWeight(FontWeight.Bold)
+      Text('编辑信息').fontSize(20).fontWeight(FontWeight.Bold)
 
-      TextInput({ placeholder: '大棚名称 (必填)', text: this.ghData.name })
+      TextInput({ placeholder: '地块名称 (必填)', text: this.ghData.name })
         .onChange((val) => this.ghData.name = val)
       Stack({ alignContent: Alignment.End }) {
         TextInput({ placeholder: '网关设备ID (必填)', text: this.ghData.deviceId })
@@ -186,7 +188,7 @@ struct EditGreenhouseDialog {
             .fontSize(12)
             .fontColor('#999')
         }
-        .padding({ left: 15, right: 15, top: 12, bottom: 12 }) // 给足点击区域
+        .padding({ left: 15, right: 15, top: 12, bottom: 12 })
         .bindMenu(this.DeviceMenuBuilder()) // 绑定菜单
       }.width('100%')
       TextInput({ placeholder: '种植作物 (可选)', text: this.ghData.crop })
@@ -212,7 +214,7 @@ struct EditGreenhouseDialog {
         Button('保存').layoutWeight(1).backgroundColor('#00B96B')
           .onClick(() => {
             if (!this.ghData.name || this.ghData.name.trim() === '') {
-              promptAction.showToast({ message: '请输入大棚名称！' });
+              promptAction.showToast({ message: '请输入地块名称！' });
               return;
             }
             if (!this.ghData.deviceId || this.ghData.deviceId.trim() === '') {
@@ -304,82 +306,122 @@ export struct MonitorDetail {
   @State currentMetric: string = 'temp'; // 当前选中的指标
   @State currentTimeRange: number = 24; // 24小时 / 168小时(7天)
   @State metricColor: string = '#FF6B6B'; // 当前折线颜色
+  // async loadChartData() {
+  //   let mockData: EnvRecordModel[] = [];
+  //   let now = new Date();
+  //   // 获取今天 00:00:00 的绝对时间戳
+  //   let startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).getTime();
+  //
+  //   if (this.currentTimeRange === 24) {
+  //     //24小时模式：强制从 00:00 到 24:00， 25 个点
+  //     for (let i = 0; i <= 24; i++) {
+  //       let r = new EnvRecordModel();
+  //       r.timestamp = startOfToday + i * 3600000;
+  //
+  //       let h = i;
+  //       let isDay = h >= 6 && h <= 18;
+  //
+  //
+  //       if (isDay) {
+  //         let sun = Math.sin(((h - 6) / 12) * Math.PI);
+  //         r.light = Math.floor(sun * 65000 + Math.random() * 3000);
+  //       } else {
+  //         r.light = Math.floor(Math.random() * 20);
+  //       }
+  //
+  //       let baseTemp = isDay ? 26 : 17;
+  //       let tempWave = isDay ? Math.sin(((h - 6) / 12) * Math.PI) * 6 : Math.random() * 2;
+  //       r.temp = Number((baseTemp + tempWave + Math.random() * 1.5).toFixed(1));
+  //
+  //       let baseHumi = isDay ? 65 : 88;
+  //       r.humi = Number((baseHumi - (r.temp - 20) * 1.2 + Math.random() * 4).toFixed(1));
+  //
+  //       r.soil = Number((48 + Math.sin(i/2) * 3 + Math.random() * 2).toFixed(1));
+  //
+  //       let baseCo2 = isDay ? 420 : 850;
+  //       r.co2 = Math.floor(baseCo2 + Math.random() * 60);
+  //
+  //       mockData.push(r);
+  //     }
+  //   } else {
+  //     // 7天模式：模拟日均值/日最高值的宏观趋势
+  //     for (let i = 7; i >= 0; i--) {
+  //       let r = new EnvRecordModel();
+  //       // 每天取一个点代表当天的聚合数据
+  //       r.timestamp = startOfToday - i * 86400000 + 12 * 3600000;
+  //
+  //       // 模拟前几天是阴天，这两天放晴（光照日最高值）
+  //       r.light = i > 2 ? Math.floor(15000 + Math.random() * 5000) : Math.floor(60000 + Math.random() * 5000);
+  //       // 模拟最近一周气温逐渐回暖（日均温）
+  //       r.temp = Number((20 + (7 - i) * 1.5 + Math.random() * 2).toFixed(1));
+  //       // 湿度跟温度反相关，逐渐降低
+  //       r.humi = Number((75 - (7 - i) * 2 + Math.random() * 3).toFixed(1));
+  //       // 模拟土壤湿度连续几天慢慢干涸，突然在昨天(i=1)浇了水，飙升的趋势
+  //       if (i > 1) {
+  //         r.soil = Number((50 - (7 - i) * 4 + Math.random() * 2).toFixed(1)); // 一天比一天干
+  //       } else {
+  //         r.soil = Number((65 + Math.random() * 2).toFixed(1)); // 刚浇完水
+  //       }
+  //       // CO2日均值比较平稳
+  //       r.co2 = Math.floor(500 + Math.random() * 30);
+  //
+  //       mockData.push(r);
+  //     }
+  //   }
+  //
+  //   this.chartRecords = mockData;
+  //
+  //
+  //   // if (!this.ghData.id) return;
+  //   // this.chartRecords = await DatabaseManager.getEnvRecords(this.ghData.id, this.currentTimeRange);
+  // }
   async loadChartData() {
-    let mockData: EnvRecordModel[] = [];
-    let now = new Date();
-    // 获取今天 00:00:00 的绝对时间戳
-    let startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).getTime();
-
-    if (this.currentTimeRange === 24) {
-      //24小时模式：强制从 00:00 到 24:00， 25 个点
-      for (let i = 0; i <= 24; i++) {
-        let r = new EnvRecordModel();
-        r.timestamp = startOfToday + i * 3600000;
-
-        let h = i;
-        let isDay = h >= 6 && h <= 18;
-
-
-        if (isDay) {
-          let sun = Math.sin(((h - 6) / 12) * Math.PI);
-          r.light = Math.floor(sun * 65000 + Math.random() * 3000);
-        } else {
-          r.light = Math.floor(Math.random() * 20);
-        }
-
-        let baseTemp = isDay ? 26 : 17;
-        let tempWave = isDay ? Math.sin(((h - 6) / 12) * Math.PI) * 6 : Math.random() * 2;
-        r.temp = Number((baseTemp + tempWave + Math.random() * 1.5).toFixed(1));
-
-        let baseHumi = isDay ? 65 : 88;
-        r.humi = Number((baseHumi - (r.temp - 20) * 1.2 + Math.random() * 4).toFixed(1));
-
-        r.soil = Number((48 + Math.sin(i/2) * 3 + Math.random() * 2).toFixed(1));
-
-        let baseCo2 = isDay ? 420 : 850;
-        r.co2 = Math.floor(baseCo2 + Math.random() * 60);
-
-        mockData.push(r);
-      }
-    } else {
-      // 7天模式：模拟日均值/日最高值的宏观趋势
-      for (let i = 7; i >= 0; i--) {
-        let r = new EnvRecordModel();
-        // 每天取一个点代表当天的聚合数据
-        r.timestamp = startOfToday - i * 86400000 + 12 * 3600000;
-
-        // 模拟前几天是阴天，这两天放晴（光照日最高值）
-        r.light = i > 2 ? Math.floor(15000 + Math.random() * 5000) : Math.floor(60000 + Math.random() * 5000);
-        // 模拟最近一周气温逐渐回暖（日均温）
-        r.temp = Number((20 + (7 - i) * 1.5 + Math.random() * 2).toFixed(1));
-        // 湿度跟温度反相关，逐渐降低
-        r.humi = Number((75 - (7 - i) * 2 + Math.random() * 3).toFixed(1));
-        // 模拟土壤湿度连续几天慢慢干涸，突然在昨天(i=1)浇了水，飙升的趋势
-        if (i > 1) {
-          r.soil = Number((50 - (7 - i) * 4 + Math.random() * 2).toFixed(1)); // 一天比一天干
-        } else {
-          r.soil = Number((65 + Math.random() * 2).toFixed(1)); // 刚浇完水
-        }
-        // CO2日均值比较平稳
-        r.co2 = Math.floor(500 + Math.random() * 30);
-
-        mockData.push(r);
-      }
+    if (!this.ghData.id) {
+      this.chartRecords = [];
+      return;
     }
 
-    this.chartRecords = mockData;
+    try {
+      // 获取所有真实数据
+      let realData = await DatabaseManager.getEnvRecords(this.ghData.id, this.currentTimeRange);
 
+      // 设定图表上最多显示的合适点数（24小时显示约12个点，7天显示约7个点）
+      let maxPoints = this.currentTimeRange === 24 ? 12 : 7;
 
-    // if (!this.ghData.id) return;
-    // this.chartRecords = await DatabaseManager.getEnvRecords(this.ghData.id, this.currentTimeRange);
+      if (realData.length > maxPoints) {
+        let step = Math.ceil(realData.length / maxPoints);
+        let sampledData: EnvRecordModel[] = [];
+
+        // 均匀抽取数据点
+        for (let i = 0; i < realData.length; i += step) {
+          sampledData.push(realData[i]);
+        }
+
+        // 确保最后一个点一定是最新数据
+        let lastReal = realData[realData.length - 1];
+        let lastSampled = sampledData[sampledData.length - 1];
+        if (lastReal.id !== lastSampled.id) {
+          sampledData.push(lastReal);
+        }
+
+        this.chartRecords = sampledData;
+      } else {
+        // 全部显示
+        this.chartRecords = realData;
+      }
+
+    } catch (e) {
+      console.error("图表真实数据加载异常:", JSON.stringify(e));
+      this.chartRecords = [];
+    }
   }
   async autoSetThresholds() {
     if (!this.ghData.crop || this.ghData.crop.trim() === '') {
-      promptAction.showToast({ message: '请先点击大棚页面右上角齿轮图标设置种植作物！' });
+      promptAction.showToast({ message: '请先点击地块页面右上角齿轮图标设置种植作物！' });
       return;
     }
     if (this.ghData.stage === undefined || this.ghData.stage < 0) {
-      promptAction.showToast({ message: '请先点击大棚页面右上角齿轮图标设置生长阶段！' });
+      promptAction.showToast({ message: '请先点击地块页面右上角齿轮图标设置生长阶段！' });
       return;
     }
 
@@ -437,83 +479,140 @@ export struct MonitorDetail {
     }
     IotService.sendCommand(this.ghData.deviceId, commandName, paras).then(success => {
       if (!success) {
-        promptAction.showToast({ message: `${commandName} 指令执行异常，请检查设备。` });
+        //promptAction.showToast({ message: `${commandName} 指令执行异常，请检查设备。` });
       }
     });
   }
   @State activeTimers: Map<string, number> = new Map();
 
-  // 唤起系统时间选择器，并计算延迟时间
+  // 唤起系统时间选择器菜单，包含设置与取消功能
   showCustomTimerDialog(deviceName: string, cmdKey: string, onCmdVal: string, offCmdVal: string) {
     promptAction.showActionMenu({
-      title: `请选择 ${deviceName} 定时操作`,
+      title: `${deviceName} 定时选项`,
       buttons: [
-        { text: '定时开启', color: '#00B96B' },
-        { text: '定时关闭', color: '#FF4D4F' }
+        { text: '设置定时区间', color: '#00B96B' },
+        { text: '取消当前定时', color: '#FF4D4F' }
       ]
     }).then((data) => {
-      let isTurnOn = data.index === 0;
-      let actionText = isTurnOn ? '开启' : '关闭';
-      let cmdValue = isTurnOn ? onCmdVal : offCmdVal;
 
-      // 调起 时间滑动选择器
-      TimePickerDialog.show({
-        useMilitaryTime: true, // 24小时制
-        onAccept: (value: TimePickerResult) => {
-          let now = new Date();
-          let target = new Date();
-          target.setHours(value.hour, value.minute, 0, 0);
+      //设置定时
+      if (data.index === 0) {
+        promptAction.showToast({ message: `第一步：请先选择 ${deviceName} 的【开启】时间`, duration: 2500 });
+        setTimeout(() => {
+          TimePickerDialog.show({
+            useMilitaryTime: true, // 24小时制
+            onAccept: (val1: TimePickerResult) => {
+              let now = new Date();
+              let target1 = new Date();
+              target1.setHours(val1.hour, val1.minute, 0, 0);
 
-          //时间比现在还早，默认明天
-          if (target.getTime() <= now.getTime()) {
-            target.setDate(target.getDate() + 1);
+              if (target1.getTime() <= now.getTime()) {
+                target1.setDate(target1.getDate() + 1);
+              }
+
+              let delay1 = target1.getTime() - now.getTime();
+              let timeStr1 = `${val1.hour < 10 ? '0'+val1.hour : val1.hour}:${val1.minute < 10 ? '0'+val1.minute : val1.minute}`;
+
+              promptAction.showToast({ message: `第二步：请选择 ${deviceName} 的【关闭】时间`, duration: 2500 });
+              setTimeout(() => {
+                TimePickerDialog.show({
+                  useMilitaryTime: true,
+                  onAccept: (val2: TimePickerResult) => {
+                    let target2 = new Date(target1.getTime());
+                    target2.setHours(val2.hour, val2.minute, 0, 0);
+
+                    if (target2.getTime() <= target1.getTime()) {
+                      target2.setDate(target2.getDate() + 1);
+                    }
+
+                    let delay2 = target2.getTime() - now.getTime();
+                    let timeStr2 = `${val2.hour < 10 ? '0'+val2.hour : val2.hour}:${val2.minute < 10 ? '0'+val2.minute : val2.minute}`;
+
+                    let cmdObjOn = this.buildCmdObj(cmdKey, onCmdVal);
+                    let cmdObjOff = this.buildCmdObj(cmdKey, offCmdVal);
+
+                    promptAction.showToast({ message: `设置成功：${deviceName} 将在 ${timeStr1} 开启，并在 ${timeStr2} 关闭` });
+
+                    //
+                    this.executeScheduleInner(deviceName, cmdKey, cmdKey + '_ON', cmdObjOn, delay1, '开启', true);
+                    this.executeScheduleInner(deviceName, cmdKey, cmdKey + '_OFF', cmdObjOff, delay2, '关闭', false);
+                  }
+                });
+              }, 600);
+            }
+          });
+        }, 500);
+
+      }
+      // 取消定时
+      else if (data.index === 1) {
+        let keyOn = cmdKey + '_ON';
+        let keyOff = cmdKey + '_OFF';
+
+        let hasTimer = this.activeTimers.has(keyOn) || this.activeTimers.has(keyOff);
+
+        if (hasTimer) {
+          if (this.activeTimers.has(keyOn)) {
+            clearTimeout(this.activeTimers.get(keyOn));
+            this.activeTimers.delete(keyOn);
           }
-
-          let delayMs = target.getTime() - now.getTime();
-          let timeStr = `${value.hour < 10 ? '0'+value.hour : value.hour}:${value.minute < 10 ? '0'+value.minute : value.minute}`;
-
-          // 组装对应的命令对象
-          let cmdObj: Object;
-          if (cmdKey === 'Agriculture_Control_Pump') {
-            let c = new CmdPump(); c.Pump = cmdValue; cmdObj = c;
-          } else if (cmdKey === 'Agriculture_Control_Led') {
-            let c = new CmdLed(); c.Led = cmdValue; cmdObj = c;
-          } else if (cmdKey === 'Agriculture_Control_Fan') {
-            let c = new CmdFan(); c.Fan = cmdValue; cmdObj = c;
-          } else {
-            let c = new CmdHumidifier(); c.Humidifier = cmdValue; cmdObj = c;
+          if (this.activeTimers.has(keyOff)) {
+            clearTimeout(this.activeTimers.get(keyOff));
+            this.activeTimers.delete(keyOff);
           }
-
-          this.executeSchedule(deviceName, cmdKey, cmdObj, delayMs, `${timeStr} ${actionText}`);
+          promptAction.showToast({ message: `已取消 ${deviceName} 的定时任务` });
+        } else {
+          promptAction.showToast({ message: `您还没为 ${deviceName} 设置过定时任务哦~` });
         }
-      });
+      }
     });
   }
+  buildCmdObj(cmdKey: string, cmdVal: string): Object {
+    if (cmdKey === 'Agriculture_Control_Pump') {
+      let c = new CmdPump(); c.Pump = cmdVal; return c;
+    } else if (cmdKey === 'Agriculture_Control_Led') {
+      let c = new CmdLed(); c.Led = cmdVal; return c;
+    } else if (cmdKey === 'Agriculture_Control_Fan') {
+      let c = new CmdFan(); c.Fan = cmdVal; return c;
+    } else {
+      let c = new CmdHumidifier(); c.Humidifier = cmdVal; return c;
+    }
+  }
 
-  // 执行倒计时发送
-  executeSchedule(deviceName: string, cmdKey: string, cmdObject: Object, delayMs: number, desc: string) {
-    promptAction.showToast({ message: `设置成功：${deviceName} 将于 ${desc}` });
-
+  // 真正的内部执行器
+  executeScheduleInner(deviceName: string, cmdKey: string, timerKey: string, cmdObject: Object, delayMs: number, actionText: string, targetState: boolean) {
     let timerId = setTimeout(() => {
       if (this.isAutoMode) {
         promptAction.showDialog({
-          title: '定时任务已取消',
-          message: `原定于执行的 [${deviceName}] 控制命令，因当前大棚已切换为【自动接管】模式被拦截，防止冲突。`,
+          title: '定时任务被拦截',
+          message: `原定于执行的 [${deviceName}] 控制命令，因当前地块处于【自动接管】模式已被拦截，防止冲突。`,
           buttons: [{ text: '知道了', color: '#00B96B' }]
         });
         return;
       }
+      // 发送命令到设备
       this.sendDeviceCmd(cmdKey, cmdObject);
-      promptAction.showToast({ message: `⏰ 定时任务触发：${deviceName} 已${desc.includes('开启')?'开启':'关闭'}` });
-      this.activeTimers.delete(cmdKey);
+
+      if (cmdKey === 'Agriculture_Control_Pump') {
+        this.pumpOpen = targetState;
+      } else if (cmdKey === 'Agriculture_Control_Led') {
+        this.ledOpen = targetState;
+      } else if (cmdKey === 'Agriculture_Control_Fan') {
+        this.fanOpen = targetState;
+      } else if (cmdKey === 'Agriculture_Control_Humidifier') {
+        this.humidifierOpen = targetState;
+      }
+
+      promptAction.showToast({ message: `⏰ 定时任务触发：${deviceName} 已${actionText}` });
+      this.activeTimers.delete(timerKey);
     }, delayMs);
 
-    if (this.activeTimers.has(cmdKey)) {
-      clearTimeout(this.activeTimers.get(cmdKey));
+    // 如果之前设置过还没触发的旧定时器，先清除掉，保证以最新设置的为准
+    if (this.activeTimers.has(timerKey)) {
+      clearTimeout(this.activeTimers.get(timerKey));
     }
-    this.activeTimers.set(cmdKey, timerId);
+    this.activeTimers.set(timerKey, timerId);
   }
-
   saveAndSendThresholds() {
     animateTo({ duration: 300, curve: Curve.EaseIn }, () => { this.isDrawerOpen = false; });
 
@@ -606,7 +705,7 @@ export struct MonitorDetail {
           console.error('自动流转失败', e);
         }
       } else {
-        // 如果已经是最后阶段（结果期），流转结束，自动关闭该功能
+        // 如果已经是结果期，流转结束，自动关闭该功能
         this.ghData.autoStageEnabled = false;
         this.ghData.nextStageTime = 0;
         DatabaseManager.updateGreenhouse(this.ghData);
@@ -813,7 +912,7 @@ export struct MonitorDetail {
           Column() {
             Row() {
               Column({ space: 6 }) {
-                // 大棚名称
+                // 地块名称
                 Text(this.ghData.name).fontSize(22).fontWeight(FontWeight.Bold)
 
                 Text(`作物: ${this.ghData.crop || '未设置'}`)
@@ -834,12 +933,37 @@ export struct MonitorDetail {
                   }
                 }
               }.alignItems(HorizontalAlign.Start)
-              Blank()
 
+              Blank() // 撑开空间
+
+              // 🔋 新增：网关电量模拟 UI
+              Row({ space: 4 }) {
+                Text('锂电池').fontSize(11).fontColor(this.isSystemOnline ? '#666' : '#999')
+                Row({ space: 1 }) {
+                  // 电池主体
+                  Stack({ alignContent: Alignment.Start }) {
+                    // 电池外壳
+                    Rect().width(20).height(10).radius(2)
+                      .fill(Color.Transparent)
+                      .stroke(this.isSystemOnline ? '#00B96B' : '#ccc')
+                      .strokeWidth(1.5)
+                    // 电池电量填充 ,只有在线时才显示里面的电量
+                    if (this.isSystemOnline) {
+                      Rect().width(15).height(6).radius(1)
+                        .fill('#00B96B')
+                        .margin({ left: 2 })
+                    }
+                  }
+                  Rect().width(2).height(4).radius(1)
+                    .fill(this.isSystemOnline ? '#00B96B' : '#ccc')
+                }
+                Text(this.isSystemOnline ? '90%' : '--').fontSize(11).fontColor(this.isSystemOnline ? '#333' : '#999')
+              }.margin({ right: 10 })
+
+              // 更多选项菜单按钮
               Text('⋮')
                 .fontSize(20).fontWeight(FontWeight.Bold).fontColor('#999')
                 .padding({left: 10, right: 5, bottom: 5})
-               // .width(24).height(24)
                 .onClick(() => {
                   this.editGhData.id = this.ghData.id;
                   this.editGhData.name = this.ghData.name;
@@ -881,6 +1005,7 @@ export struct MonitorDetail {
             List({ space: 12 }) {
               ListItem() { HorizontalDataCard({ title: '空气温度', value: this.airTemp, unit: '℃', colorCode: '#FF6B6B', isSystemOnline: this.isSystemOnline }) }
               ListItem() { HorizontalDataCard({ title: '空气湿度', value: this.airHum, unit: '%', colorCode: '#4DABF7', isSystemOnline: this.isSystemOnline }) }
+              ListItem() { HorizontalDataCard({ title: '土壤温度', value: '23', unit: '℃', colorCode: '#f2ac5406', isSystemOnline: this.isSystemOnline }) }
               ListItem() { HorizontalDataCard({ title: '土壤湿度', value: this.soilHum, unit: '%', colorCode: '#8CE200', isSystemOnline: this.isSystemOnline }) }
               ListItem() { HorizontalDataCard({ title: '光照强度', value: this.lightLux, unit: 'Lx', colorCode: '#FCC419', isSystemOnline: this.isSystemOnline }) }
               ListItem() { HorizontalDataCard({ title: 'CO2浓度', value: this.co2, unit: 'ppm', colorCode: '#A9A9A9', isSystemOnline: this.isSystemOnline }) }
@@ -940,8 +1065,8 @@ export struct MonitorDetail {
               })
               DeviceControlItem({
                 icon: $r('app.media.ic_humidifier'),
-                name: '农药喷湿器', isOn: this.humidifierOpen, isAuto: this.isAutoMode,
-                autoText: `手动接管模式下自由控制`, statusStr: this.humidifierStatusStr, isSystemOnline: this.isSystemOnline,
+                name: '农药弥雾器', isOn: this.humidifierOpen, isAuto: this.isAutoMode,
+                autoText: `发现害虫时喷洒`, statusStr: this.humidifierStatusStr, isSystemOnline: this.isSystemOnline,
                 onChangeCb: (val: boolean) => {
                   this.humidifierOpen = val;
                   let humiCmd = new CmdHumidifier();
@@ -966,7 +1091,7 @@ export struct MonitorDetail {
 
               // 指标切换栏
               // 指标切换栏
-              Row({ space: 8 }) { // 间距调小一点点，保证5个按钮放得下
+              Row({ space: 8 }) {
                 Text('温度').fontSize(13).fontColor(this.currentMetric==='temp'?'#FFF':'#666').backgroundColor(this.currentMetric==='temp'?'#FF6B6B':'#EEE').padding({left:10,right:10,top:5,bottom:5}).borderRadius(12)
                   .onClick(()=>{ this.currentMetric='temp'; this.metricColor='#FF6B6B'; })
 
@@ -1069,7 +1194,7 @@ export struct MonitorDetail {
                   this.ghData.autoStageEnabled = isOn;
                   if (isOn) {
                     if (this.ghData.stage < 0 || !this.ghData.crop) {
-                      promptAction.showToast({ message: '请先在大棚设置中指定作物和当前生长阶段！' });
+                      promptAction.showToast({ message: '请先在地块设置中指定作物和当前生长阶段！' });
                       this.ghData.autoStageEnabled = false;
                       return;
                     }
@@ -1097,7 +1222,7 @@ export struct MonitorDetail {
                       let co2Nums = extractNums(aiResult.carbonDioxide);
                       if (co2Nums.length > 0) this.thresholdCO2 = Math.min(5000, Math.max(0, Math.max(...co2Nums)));
 
-                      // 更新大棚对象的阈值
+                      // 更新地块对象的阈值
                       this.ghData.thresholdTemp = this.thresholdTemp;
                       this.ghData.thresholdHumi = this.thresholdHumi;
                       this.ghData.thresholdLight = this.thresholdLight;

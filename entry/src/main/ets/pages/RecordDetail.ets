@@ -8,7 +8,7 @@ import { fileIo } from '@kit.CoreFileKit';
 import util from '@ohos.util';
 import { promptAction } from '@kit.ArkUI';
 
-// 复制系统临时图片到App沙箱，防止重启后权限丢失变白块！
+// 复制系统临时图片到App沙箱，防止重启后权限丢失变白块
 async function copyImageToSandbox(context: common.UIAbilityContext, uri: string): Promise<string> {
   try {
     let file = fileIo.openSync(uri, fileIo.OpenMode.READ_ONLY);
@@ -51,6 +51,7 @@ struct CreateRecordDialog {
       alignment: DialogAlignment.Bottom,
       sheets: [
         { title: '拍照', action: () => this.takePhoto() },
+        { title: ' ', action: () => this.takePhoto()},
         { title: '从相册选择', action: () => this.pickPhoto() }
       ]
     })

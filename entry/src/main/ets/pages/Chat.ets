@@ -44,11 +44,27 @@ export struct Chat {
   aboutToAppear() {
     this.requestMicPermission();
     this.mdController.setThreadRenderEnable(true).setTextColor('#333333').setTextSize(16);
-    // 监听拍照识别事件
-    emitter.on({ eventId: 1002 }, () => {
+
+    // 监听拍照识别事件，实现自动发送
+    emitter.on({ eventId: 1002 }, async () => {
       this.inputValue = "请帮我看看这个植物的叶子怎么了？得了什么病？应该怎么用药防治？";
-      this.takePhoto();
+
+      // 调起系统相机
+      let context = getContext(this) as common.UIAbilityContext;
+      let uri = await ImageUtil.takePhotoWithCamera(context);
+
+      if (uri) {
+        this.handleImageSelected(uri);
+        // 处理完照片后，延迟300毫秒自动发送给AI
+        setTimeout(() => {
+          this.sendMessage();
+        }, 300);
+      } else {
+        // 中途取消了拍照，清空输入框的模板文字
+        this.inputValue = '';
+      }
     });
+
     // 监听历史记录被删除的事件
     emitter.on({ eventId: 2001 }, (eventData: emitter.EventData) => {
       let deletedId = eventData.data?.deletedId as number;
@@ -134,15 +150,16 @@ export struct Chat {
     let userText = this.inputValue.trim();
     let userMsg = new MessageModel('user', userText);
     userMsg.id = util.generateRandomUUID(true);
-    if (this.selectedImageBase64) {
+    if (this.selectedImageUri) {
       userMsg.imageUri = this.selectedImageUri;
       userMsg.imageBase64 = this.selectedImageBase64;
     }
+
     this.messageList.push(userMsg);
+
     if (this.currentSessionId === -1) {
       this.currentSessionId = await DatabaseManager.insertSession('新对话...', Date.now());
 
-      //后台异步让AI生成标题并更新数据库
       AiService.generateChatTitle(userText).then((title) => {
         DatabaseManager.updateSessionTitle(this.currentSessionId, title);
       });
@@ -435,53 +452,3 @@ export struct Chat {
     })
   }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

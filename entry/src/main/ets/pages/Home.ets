@@ -41,50 +41,14 @@ export struct Home {
   }
 
   // 初始化天气
-  // async initWeatherData() {
-  //   //静默刷新
-  //   if (!this.weatherData) {
-  //     this.isWeatherLoading = true;
-  //   }
-  //   try {
-  //     let context = getContext(this) as common.UIAbilityContext;
-  //     let aiWeather = await HomeViewModel.getLocalWeather(context);
-  //     if (aiWeather) {
-  //       this.weatherData = aiWeather;
-  //     }
-  //   } catch (error) {
-  //     console.error('天气初始化失败，请打手机开位置权限:', JSON.stringify(error));
-  //   } finally {
-  //     this.isWeatherLoading = false;
-  //   }
-  // }
-  // 初始化天气 (测试环境 Mock 数据)
   async initWeatherData() {
     //静默刷新
     if (!this.weatherData) {
       this.isWeatherLoading = true;
     }
     try {
-      // ⚠️【修改点1】：注释掉真实的 API 调用，省额度！
-      // let context = getContext(this) as common.UIAbilityContext;
-      // let aiWeather = await HomeViewModel.getLocalWeather(context);
-
-      // ⚠️【修改点2】：模拟 0.5 秒的网络延迟，测试加载动画
-      await new Promise<void>(resolve => setTimeout(resolve, 500));
-
-      // ⚠️【修改点3】：使用写死的假数据（请确保字段名与你的 WeatherInfo 模型一致）
-      let aiWeather: WeatherInfo = {
-        location: "测试农场(开发中)",
-        condition: "晴转多云",
-        currentTemp: 26,
-        lowTemp: 18,
-        highTemp: 32,
-        precipitation: "0mm",
-        humidity: "45%",
-        wind: "东南风 3级",
-        light: "强"
-      };
-
+      let context = getContext(this) as common.UIAbilityContext;
+      let aiWeather = await HomeViewModel.getLocalWeather(context);
       if (aiWeather) {
         this.weatherData = aiWeather;
       }
@@ -94,6 +58,39 @@ export struct Home {
       this.isWeatherLoading = false;
     }
   }
+  // 初始化天气 (测试环境 Mock 数据)
+  // async initWeatherData() {
+  //   //静默刷新
+  //   if (!this.weatherData) {
+  //     this.isWeatherLoading = true;
+  //   }
+  //   try {
+  //     // let context = getContext(this) as common.UIAbilityContext;
+  //     // let aiWeather = await HomeViewModel.getLocalWeather(context);
+  //
+  //     await new Promise<void>(resolve => setTimeout(resolve, 500));
+  //
+  //     let aiWeather: WeatherInfo = {
+  //       location: "测试农场(开发中)",
+  //       condition: "晴转多云",
+  //       currentTemp: 26,
+  //       lowTemp: 18,
+  //       highTemp: 32,
+  //       precipitation: "0mm",
+  //       humidity: "45%",
+  //       wind: "东南风 3级",
+  //       light: "强"
+  //     };
+  //
+  //     if (aiWeather) {
+  //       this.weatherData = aiWeather;
+  //     }
+  //   } catch (error) {
+  //     console.error('天气初始化失败，请打手机开位置权限:', JSON.stringify(error));
+  //   } finally {
+  //     this.isWeatherLoading = false;
+  //   }
+  // }
 
   @Builder WeatherDetailItem(label: string, value: string) {
     Column({ space: 4 }) {

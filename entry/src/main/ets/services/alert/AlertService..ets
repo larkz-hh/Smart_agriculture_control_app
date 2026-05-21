@@ -45,7 +45,7 @@ export class AlertService {
           if (data.Humidity >= gh.thresholdHumi) {
             alerts.push(`空气湿度(${data.Humidity}%) 超上限(${gh.thresholdHumi}%)`);
           }
-          //超过二氧化碳浓度阈值
+          //超过二氧化碳浓度阈值 ///508
           if (data.CO2 >= gh.thresholdCO2) {
             alerts.push(`CO2(${data.CO2}ppm) 超上限(${gh.thresholdCO2}ppm)`);
           }

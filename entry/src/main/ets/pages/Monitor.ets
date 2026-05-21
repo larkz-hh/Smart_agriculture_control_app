@@ -62,7 +62,7 @@ struct GreenhouseDialog {
 
   build() {
     Column({ space: 15 }) {
-      Text(this.ghData.id ? '编辑大棚' : '新增大棚').fontSize(20).fontWeight(FontWeight.Bold)
+      Text(this.ghData.id ? '编辑地块' : '新增地块').fontSize(20).fontWeight(FontWeight.Bold)
 
       //封面图片选择区
       Column({ space: 8 }) {
@@ -74,11 +74,11 @@ struct GreenhouseDialog {
           .backgroundColor('#F0F0F0')
           .onClick(() => this.selectCoverImage())
 
-        Text('点击设置大棚封面').fontSize(12).fontColor('#999')
+        Text('点击设置地块封面').fontSize(12).fontColor('#999')
       }.width('100%').alignItems(HorizontalAlign.Center).margin({ bottom: 5 })
 
 
-      TextInput({ placeholder: '大棚名称 (必填)', text: this.ghData.name })
+      TextInput({ placeholder: '地块名称 (必填)', text: this.ghData.name })
         .onChange((val) => this.ghData.name = val)
       Stack({ alignContent: Alignment.End }) {
         TextInput({ placeholder: '网关设备ID (必填)', text: this.ghData.deviceId })
@@ -116,7 +116,7 @@ struct GreenhouseDialog {
         Button('保存').layoutWeight(1).backgroundColor('#00B96B')
           .onClick(() => {
             if (!this.ghData.name || this.ghData.name.trim() === '') {
-              promptAction.showToast({ message: '请输入大棚名称！' });
+              promptAction.showToast({ message: '请输入地块名称！' });
               return;
             }
             if (!this.ghData.deviceId || this.ghData.deviceId.trim() === '') {
@@ -181,7 +181,7 @@ export struct Monitor {
           this.dialogController.open();
         })
 
-      MenuItem({ content: '删除大棚' })
+      MenuItem({ content: '删除地块' })
         .onClick(async () => {
           if (item.id) {
             await DatabaseManager.deleteGreenhouse(item.id);
@@ -248,7 +248,7 @@ export struct Monitor {
       Row() {
 
         Column({ space: 12 }) {
-          Text('大棚管理')
+          Text('地块管理')
             .fontSize(30)
             .fontWeight(FontWeight.Bolder)
             .fontColor(Color.White)
@@ -277,7 +277,7 @@ export struct Monitor {
 
             Row({ space: 6 }) {
               Circle({ width: 6, height: 6 }).fill('#FFD700')
-              Text('智慧大棚节点')
+              Text('智慧节点')
                 .fontSize(12)
                 .fontColor('rgba(255, 255, 255, 0.9)')
             }
@@ -325,7 +325,7 @@ export struct Monitor {
               .width(130)
               .height(130)
 
-            Text('暂无大棚数据\n点击右下角立刻添加')
+            Text('暂无地块数据\n点击右下角立刻添加')
               .fontSize(15)
               .fontColor('#999')
               .textAlign(TextAlign.Center)
